@@ -16,7 +16,8 @@ use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
 
-pub const BUNDLE_ID: &str = "io.github.zaclohrenz.assessit";
+#[cfg(target_os = "macos")]
+const BUNDLE_ID: &str = "io.github.zaclohrenz.assessit";
 const MAX_BYTES: usize = 2 * 1024 * 1024;
 
 #[derive(Serialize)]
