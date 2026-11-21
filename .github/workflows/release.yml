@@ -5,9 +5,9 @@ name: Release
 #   plan      works out the version from package.json and checks the tag name is free
 #   macos     tests and builds the universal Mac zip    ┐ in parallel, from the same commit.
 #   windows   builds the Windows installer              ┘ Nothing is public yet.
-#   publish   waits for approval if the "release" environment requires it, then in one go:
-#             commits the version + Homebrew cask, creates the tag and the GitHub release with
-#             every file attached, and fast-forwards main.
+#   publish   waits for approval if the "release" environment requires it, then creates the tag and
+#             the GitHub release with every file attached, and merges the version + Homebrew cask
+#             commit into main through a pull request (main only accepts changes through PRs).
 #
 # If anything fails before publish, nothing has changed anywhere: fix it and run the workflow again.
 # The repo uses GitHub's immutable releases, so a published release (and its tag name) is final.
@@ -30,6 +30,7 @@ concurrency:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   plan:
@@ -156,6 +157,33 @@ jobs:
           SHA: ${{ needs.plan.outputs.sha }}
           CASK_SHA: ${{ needs.macos.outputs.sha256 }}
         run: |
+          branch="release-v$V"
+
+          # Merges the version + cask commit into main. main only accepts changes through pull requests.
+          merge_into_main() {
+            pr=$(gh pr list --head "$branch" --base main --state open --json url -q '.[0].url')
+            [ -n "$pr" ] || pr=$(gh pr create --base main --head "$branch" --title "chore(release): v$V" \
+              --body "Version bump and Homebrew cask for [v$V](https://github.com/$GITHUB_REPOSITORY/releases/tag/v$V). Opened by the Release workflow.")
+            if gh pr merge "$pr" --squash; then
+              git push origin --delete "$branch"
+              echo "Merged $pr" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::error::v$V is published, but $pr couldn't be merged automatically (for example, it needs an approval). Merge it to update main and the Homebrew cask."
+              echo "**Merge $pr** to update main and the Homebrew cask." >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+          }
+
+          # Safe to re-run: if an earlier attempt already published, only finish updating main.
+          state=$(gh release view "v$V" --json isDraft -q .isDraft 2>/dev/null || true)
+          if [ "$state" = "false" ]; then
+            echo "v$V is already published by an earlier attempt."
+            if git ls-remote --exit-code origin "refs/heads/$branch" >/dev/null; then merge_into_main; fi
+            exit 0
+          fi
+          # A draft means an earlier attempt stopped mid-upload. Drafts can be deleted; start over.
+          [ "$state" = "true" ] && gh release delete "v$V" --yes
+
           ls -l out
           node scripts/set-version.mjs "$V"
           sed -i -E "s/^  version \".*\"/  version \"$V\"/; s/^  sha256 \".*\"/  sha256 \"$CASK_SHA\"/" Casks/assessit.rb
@@ -169,15 +197,12 @@ jobs:
             echo "::error::main changed while this release was building. Run the Release workflow again."; exit 1
           fi
 
-          # The release needs its commit on GitHub first; park it on a temporary branch.
-          branch="release-v$V"
-          git push origin "HEAD:refs/heads/$branch"
+          # The release needs its commit on GitHub first; park it on a temporary branch
+          # (replacing any left by an attempt that stopped before publishing).
+          git push --force origin "HEAD:refs/heads/$branch"
           # Creates a draft, uploads every file, then publishes: nothing is public until it's complete.
           if ! gh release create "v$V" out/* --target "$commit" --title "AssessIT $V" --generate-notes --latest; then
             git push origin --delete "$branch"; exit 1
           fi
-          if ! git push origin "HEAD:main"; then
-            echo "::error::v$V is published, but main moved in the meantime. Merge the $branch branch into main to bring over the version and cask."; exit 1
-          fi
-          git push origin --delete "$branch"
           echo "### Published [v$V](https://github.com/$GITHUB_REPOSITORY/releases/tag/v$V)" >> "$GITHUB_STEP_SUMMARY"
+          merge_into_main
