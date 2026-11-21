@@ -27,8 +27,13 @@ ROOT = Path(__file__).resolve().parent.parent
 POLICY = json.loads((ROOT / "src/policy/default-policy.json").read_text())
 FACTORS = POLICY["factors"]
 IDS = [f["id"] for f in FACTORS]
+# These questions are scored like any other (see tests/engine.test.ts), but they were added after the
+# reference workbook was made, so the workbook can't compute them. Rows here answer them "No" (0 points)
+# only so the workbook's expected numbers stay valid for everything else. It says nothing about their weight.
+EXTRA = {"L13", "L14", "L15", "P4", "P5", "P6", "P7", "P8"}
+WORKBOOK_IDS = [fid for fid in IDS if fid not in EXTRA]
 # Workbook layout: factor rows start at row 23 on both the Input and Weights tabs.
-ROW = {fid: 23 + i for i, fid in enumerate(IDS)}
+ROW = {fid: 23 + i for i, fid in enumerate(WORKBOOK_IDS)}
 
 OUT = {  # Weights tab cells the test compares against
     "likelihood": "D65",
@@ -68,8 +73,10 @@ REFERENCE = {  # the worked example from the original spreadsheet
 def case(name, base=BASE, **changes):
     unknown = set(changes) - set(IDS)
     assert not unknown, f"{name}: unknown factor IDs {unknown}"
+    assert not (set(changes) & EXTRA), f"{name}: the workbook can't score {set(changes) & EXTRA}"
     a = dict(base)
     a.update(changes)
+    a.update({fid: lowest(fid) for fid in EXTRA})
     return name, a
 
 
@@ -110,7 +117,7 @@ CASES = [
 
 rng = random.Random(20261120)  # fixed seed: the CSV must be reproducible
 for i in range(1, 21):
-    a = {fid: rng.choice(options(fid)) for fid in IDS}
+    a = {fid: (lowest(fid) if fid in EXTRA else rng.choice(options(fid))) for fid in IDS}
     if i % 7 == 0:  # sprinkle some unanswered optional questions
         for fid in rng.sample([f["id"] for f in FACTORS if not f["required"]], 3):
             a[fid] = ""
@@ -123,7 +130,7 @@ def main(workbook):
     def key(sheet, cell):
         return next(k for k in xl.dsp.data_nodes if k.upper().endswith(f"{sheet}'!{cell}"))
 
-    in_keys = {fid: key("INPUT", f"D{ROW[fid]}") for fid in IDS}
+    in_keys = {fid: key("INPUT", f"D{ROW[fid]}") for fid in WORKBOOK_IDS}
     out_keys = {name: key("WEIGHTS", cell) for name, cell in OUT.items()}
 
     path = ROOT / "tests/scoring-cases.csv"
@@ -135,7 +142,7 @@ def main(workbook):
         w.writerow(["case", *IDS, *OUT.keys()])
         for name, answers in CASES:
             assert "," not in name, f"keep case names comma-free for readability: {name}"
-            sol = xl.calculate(inputs={in_keys[f]: answers[f] for f in IDS}, outputs=list(out_keys.values()))
+            sol = xl.calculate(inputs={in_keys[f]: answers[f] for f in WORKBOOK_IDS}, outputs=list(out_keys.values()))
             vals = {n: sol[k].value[0][0] for n, k in out_keys.items()}
             row = [name, *[answers[f] for f in IDS]]
             for n in OUT:

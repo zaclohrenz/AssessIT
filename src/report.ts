@@ -50,7 +50,7 @@ export function answersText(policy: Policy, a: Assessment, r: Result): string {
     .map((f) => {
       const ans = a.answers[f.factor.id];
       const src = ans?.origin === "ai" ? " [AI, not reviewed]" : "";
-      let line = `${f.factor.id} ${f.factor.factor}: ${f.response || "(blank)"} (${fmtPts(f.points, f.factor.section)})${src}`;
+      let line = f.status === "Ignored" ? `${f.factor.id} ${f.factor.factor}: (ignored, not scored)` : `${f.factor.id} ${f.factor.factor}: ${f.response || "(blank)"} (${fmtPts(f.points, f.factor.section)})${src}`;
       if (ans?.notes) line += `\n   ${ans.notes}`;
       if (ans?.sources) line += `\n   Sources: ${ans.sources}`;
       return line;

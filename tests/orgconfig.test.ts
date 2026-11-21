@@ -49,7 +49,7 @@ describe("sanitizing configs", () => {
     expect(c.submit).toBeUndefined();
     expect(c.org).toBeUndefined();
     expect(c.lock).toBeUndefined();
-    expect(c.policy?.factors).toHaveLength(27);
+    expect(c.policy?.factors).toHaveLength(35);
   });
 
   it("an organization's config keeps its settings and drops unknown keys", () => {

@@ -66,7 +66,7 @@ SOFTWARE UNDER REVIEW
 
 YOUR JOB
 Search the web and read primary sources to find evidence for each PUBLIC question below, then propose an answer.
-Run a separate, dedicated search for each of these topics; do not rely on one search to cover several: security certifications (SOC 2 / ISO 27001); data breaches and security incidents; privacy lawsuits and regulator actions; company size and founding date; AI models used; third-party security rating; acquisitions and ownership changes; sub-processors / AI providers; autonomous actions / agent features; SSO and MFA on the named plan; data deletion and retention terms; training on customer data and opt-outs; content safeguards.
+Run a separate, dedicated search for each of these topics; do not rely on one search to cover several: security certifications (SOC 2 / ISO 27001); data breaches and security incidents; privacy lawsuits and regulator actions; company size and founding date; AI models used; third-party security rating; acquisitions and ownership changes; sub-processors / AI providers; autonomous actions / agent features; SSO and MFA on the named plan; data deletion and retention terms; training on customer data and opt-outs; content safeguards; how the vendor handled any past breach (prompt, honest notice or downplayed); incident notification commitments; vulnerability disclosure policy, fix timelines and track record (check CISA's KEV catalog); data storage locations and sanctioned-country ties; copyright indemnity and training-data lawsuits; government surveillance or military sales; data export and exit terms.
 Prefer primary sources: the vendor's trust center, security/compliance pages, DPA, privacy policy, sub-processor list, and product docs for the specific plan/tier. For breaches, privacy record and ownership changes, check regulators (FTC, state AGs, EU DPAs, ICO) and reputable news. Note when an incident involved a parent company instead of the vendor.
 
 RULES
@@ -156,6 +156,10 @@ export function mergeResearch(policy: Policy, a: Assessment, out: ResearchOutput
     const f = policy.factors.find((x) => x.id === r.id);
     if (!f) continue;
     const cur = a.answers[r.id];
+    if (cur?.ignored) {
+      skipped++;
+      continue;
+    }
     const userOwned = cur && cur.origin === "user" && (cur.response || cur.notes || cur.sources);
     if (userOwned) {
       skipped++;

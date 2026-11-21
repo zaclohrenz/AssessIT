@@ -2,14 +2,14 @@
 // Read SCORING.md first. The whole model is the riskScore() function below; the rest of
 // this file adds up points from the answers and turns the score into a decision.
 
-import type { Assessment, Band, Factor, OrgSettings, Policy, Section } from "./types";
+import type { Answer, Assessment, Band, Factor, OrgSettings, Policy, Section } from "./types";
 
 export interface FactorResult {
   factor: Factor;
   response: string;
   points: number;
   maxPoints: number;
-  status: "Not scored" | "Answered" | "Required" | "Optional";
+  status: "Not scored" | "Ignored" | "Answered" | "Required" | "Optional";
   missingRequired: boolean;
   hardStopHit: boolean;
   /** How far the final score would move if this factor had its lowest-risk answer. */
@@ -100,16 +100,22 @@ export function addMonths(isoDate: string, months: number): string | null {
   return dt.toISOString().slice(0, 10);
 }
 
+/** True when the question allows it and the assessor chose to ignore it. */
+export const isIgnored = (f: Factor, ans?: Answer): boolean => !!f.ignorable && !!ans?.ignored;
+
 export function compute(policy: Policy, a: Assessment): Result {
   const rows = policy.factors.map((f) => {
     const response = (a.answers[f.id]?.response ?? "").trim();
-    const scored = f.enabled;
+    const ignored = isIgnored(f, a.answers[f.id]);
+    const scored = f.enabled && !ignored;
     const opt = f.options.find((o) => o.label === response);
     const points = scored && response && opt ? opt.points : 0;
     const maxPoints = scored ? Math.max(0, ...f.options.map((o) => o.points)) : 0;
     const missingRequired = scored && f.required && !response;
     const hardStopHit = scored && !!f.hardStop && response === f.hardStop;
-    const status: FactorResult["status"] = !scored
+    const status: FactorResult["status"] = ignored
+      ? "Ignored"
+      : !scored
       ? "Not scored"
       : response
         ? "Answered"
@@ -224,10 +230,10 @@ export function compute(policy: Policy, a: Assessment): Result {
     score,
     maxScore: riskScore(likelihoodMax, impactMax, preferenceMax, 0),
     band,
-    requiredCount: rows.filter((r) => r.factor.enabled && r.factor.required).length,
+    requiredCount: rows.filter((r) => r.status !== "Not scored" && r.status !== "Ignored" && r.factor.required).length,
     requiredUnanswered,
     hardStops,
-    optionalAnswered: rows.filter((r) => r.factor.enabled && !r.factor.required && r.response).length,
+    optionalAnswered: rows.filter((r) => r.status !== "Ignored" && r.factor.enabled && !r.factor.required && r.response).length,
     calculatedDecision,
     finalDecision,
     overridden: !!override,

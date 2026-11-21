@@ -55,7 +55,7 @@ AssessIT's defaults follow published guidance. **NIST tells you *what* to assess
 - **Structure:** risk as likelihood × impact follows [NIST SP 800-30 Rev. 1](https://csrc.nist.gov/pubs/sp/800/30/r1/final). Supplier due diligence follows [NIST CSF 2.0](https://doi.org/10.6028/NIST.CSWP.29) GV.SC-06/07 and ID.RA-10. AI-specific risks follow the [NIST AI RMF](https://doi.org/10.6028/NIST.AI.100-1) and the [Generative AI Profile (NIST AI 600-1)](https://doi.org/10.6028/NIST.AI.600-1). Buyer questions follow [CISA's Secure by Demand guide](https://www.cisa.gov/news-events/news/cisa-releases-secure-demand-guide).
 - **Every question cites its basis** (table below). A question with no published basis is labeled **Org preference**.
 - **Point values, band thresholds and the 25% cap** are the calibration of the original template. Where to draw the approve/deny line is your risk appetite, which NIST says each organization sets for itself ([CSF 2.0 GV.RM-02](https://doi.org/10.6028/NIST.CSWP.29)).
-- **Organization preferences** are things many organizations care about that NIST and CISA don't (yet) say how to weigh. Examples: whether a vendor's AI produces harmful content, or trains on personal data without meaningful consent. They scale the whole score instead of adding points, because they're about values rather than the odds of a breach.
+- **Organization preferences** are things many organizations care about that NIST and CISA don't (yet) say how to weigh. Examples: whether a vendor's AI produces harmful content, stores data outside your country, has sanctioned-country ties, reproduces copyrighted work, serves government surveillance, or makes it hard to leave. They scale the whole score instead of adding points, because they're about values rather than the odds of a breach. The ones that are purely a value choice (small vendor, data location, government use, lock-in) can be **ignored** for an assessment: an ignored question isn't scored or required, and the report says it was ignored. Each explains under "Why it matters" when ignoring it is reasonable.
 
 These defaults only change when the guidance changes. See [CONTRIBUTING.md](CONTRIBUTING.md). If your organization weighs things differently, change the policy in your own org config; that's what it's for.
 
@@ -68,27 +68,30 @@ These defaults only change when the guidance changes. See [CONTRIBUTING.md](CONT
 | ID | Factor | Answers | Required | Basis |
 |---|---|---|---|---|
 | L1 | No security certification | Yes = 1; No = 0 | Yes | [NIST CSF 2.0 ID.RA-10](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 GV.SC-06](https://doi.org/10.6028/NIST.CSWP.29), [CISA Software Acquisition Guide (2024)](https://www.cisa.gov/sites/default/files/2024-07/PDM24050%20Software%20Acquisition%20Guide%20for%20Government%20Enterprise%20ConsumersV2_508c.pdf) |
-| L2 | Breach in last 3 years | Yes = 2; No = 0 | Yes | [NIST CSF 2.0 GV.SC-06](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 GV.SC-07](https://doi.org/10.6028/NIST.CSWP.29) |
-| L3 | Negative privacy record | Yes = 2; No = 0 | Yes | [NIST CSF 2.0 GV.SC-06](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 GV.SC-07](https://doi.org/10.6028/NIST.CSWP.29) |
-| L4 | Small / early-stage vendor | Yes = 1; No = 0 | Yes | **Org preference**; related: [NIST CSF 2.0 GV.SC-06](https://doi.org/10.6028/NIST.CSWP.29) |
+| L2 | Breach in the last 3 years | Yes = 2; No = 0 | Yes | [NIST CSF 2.0 GV.SC-06](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 GV.SC-07](https://doi.org/10.6028/NIST.CSWP.29) |
+| L3 | Privacy trouble | Yes = 2; No = 0 | Yes | [NIST CSF 2.0 GV.SC-06](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 GV.SC-07](https://doi.org/10.6028/NIST.CSWP.29) |
+| L4 | Small or young vendor | Yes = 1; No = 0 | Yes | **Org preference**; related: [NIST CSF 2.0 GV.SC-06](https://doi.org/10.6028/NIST.CSWP.29) |
 | L5 | AI model not disclosed | Yes = 2; No = 0 | Yes | [NIST AI RMF 1.0 MAP 4.1](https://doi.org/10.6028/NIST.AI.100-1), [NIST AI 600-1 2.12](https://doi.org/10.6028/NIST.AI.600-1) |
-| L6 | Bypasses IT / Legal purchasing | Yes = 1; No = 0 | Yes | [NIST CSF 2.0 GV.SC-05](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 GV.SC-06](https://doi.org/10.6028/NIST.CSWP.29) |
+| L6 | Bought outside IT and Legal review | Yes = 1; No = 0 | Yes | [NIST CSF 2.0 GV.SC-05](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 GV.SC-06](https://doi.org/10.6028/NIST.CSWP.29) |
 | L7 | Third-party security rating | 76-100 = 0; 51-75 = 1; 26-50 = 2; 0-25 = 3; Not rated = 2 | Yes | [NIST CSF 2.0 GV.SC-07](https://doi.org/10.6028/NIST.CSWP.29) |
-| L8 | Recent change of ownership | Yes = 1; No = 0 | No | [NIST CSF 2.0 GV.SC-07](https://doi.org/10.6028/NIST.CSWP.29) |
-| L9 | Sends data to other AI providers | Yes = 1; No = 0; Unknown = 1 | No | [NIST AI RMF 1.0 GOVERN 6.1](https://doi.org/10.6028/NIST.AI.100-1), [NIST CSF 2.0 GV.SC-07](https://doi.org/10.6028/NIST.CSWP.29) |
-| L10 | Takes autonomous actions | Yes = 2; No = 0 | No | [OWASP Top 10 for LLM Apps 2025 LLM06](https://genai.owasp.org/llmrisk/llm062025-excessive-agency/), [NIST AI 600-1 2.7](https://doi.org/10.6028/NIST.AI.600-1) |
-| L11 | No SSO / MFA | Yes = 1; No = 0 | No | [NIST CSF 2.0 PR.AA-01](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 PR.AA-03](https://doi.org/10.6028/NIST.CSWP.29), [CISA Secure by Demand Guide (2024)](https://www.cisa.gov/news-events/news/cisa-releases-secure-demand-guide) |
-| L12 | Can't guarantee data deletion | Yes = 1; No = 0 | No | [NIST CSF 2.0 GV.SC-10](https://doi.org/10.6028/NIST.CSWP.29), [NIST SP 800-88 Rev. 2](https://csrc.nist.gov/pubs/sp/800/88/r2/final) |
+| L8 | Recent ownership change | Yes = 1; No = 0 | No | [NIST CSF 2.0 GV.SC-07](https://doi.org/10.6028/NIST.CSWP.29) |
+| L9 | Our data goes to other AI companies | Yes = 1; No = 0; Unknown = 1 | No | [NIST AI RMF 1.0 GOVERN 6.1](https://doi.org/10.6028/NIST.AI.100-1), [NIST CSF 2.0 GV.SC-07](https://doi.org/10.6028/NIST.CSWP.29) |
+| L10 | Acts on its own | Yes = 2; No = 0 | No | [OWASP Top 10 for LLM Apps 2025 LLM06](https://genai.owasp.org/llmrisk/llm062025-excessive-agency/), [NIST AI 600-1 2.7](https://doi.org/10.6028/NIST.AI.600-1) |
+| L11 | No single sign-on or MFA | Yes = 1; No = 0 | No | [NIST CSF 2.0 PR.AA-01](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 PR.AA-03](https://doi.org/10.6028/NIST.CSWP.29), [CISA Secure by Demand Guide (2024)](https://www.cisa.gov/news-events/news/cisa-releases-secure-demand-guide) |
+| L12 | No written deletion promise | Yes = 1; No = 0 | No | [NIST CSF 2.0 GV.SC-10](https://doi.org/10.6028/NIST.CSWP.29), [NIST SP 800-88 Rev. 2](https://csrc.nist.gov/pubs/sp/800/88/r2/final) |
+| L13 | Downplayed or mishandled a breach | Yes = 2; No = 0; No breach on record = 0 | Yes | [NIST CSF 2.0 RS.CO-02](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 GV.SC-07](https://doi.org/10.6028/NIST.CSWP.29) |
+| L14 | No deadline to tell us about incidents | Yes = 1; No = 0 | Yes | [NIST CSF 2.0 GV.SC-05](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 GV.SC-08](https://doi.org/10.6028/NIST.CSWP.29) |
+| L15 | No vulnerability disclosure or fix timelines | Yes = 1; No = 0 | Yes | [NIST CSF 2.0 ID.RA-08](https://doi.org/10.6028/NIST.CSWP.29), [CISA Secure by Demand Guide (2024)](https://www.cisa.gov/news-events/news/cisa-releases-secure-demand-guide), [CISA Known Exploited Vulnerabilities Catalog](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) |
 
 #### Impact (points)
 
 | ID | Factor | Answers | Required | Basis |
 |---|---|---|---|---|
-| I1 | Severity if it fails | Catastrophic = 3; Unacceptable = 2; Acceptable = 0 | Yes | [NIST CSF 2.0 GV.SC-04](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 ID.AM-05](https://doi.org/10.6028/NIST.CSWP.29) |
-| I2 | Supports critical processes | Yes = 3; No = 0 | Yes | [NIST CSF 2.0 GV.SC-04](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 ID.AM-05](https://doi.org/10.6028/NIST.CSWP.29) |
-| I3 | Data classification | Sensitive = 3; Confidential = 2; Internal = 1; Public = 0 | Yes | [FIPS 199](https://csrc.nist.gov/pubs/fips/199/final), [NIST CSF 2.0 ID.AM-05](https://doi.org/10.6028/NIST.CSWP.29) |
-| I4 | Direct harm to people | Yes = 3; No = 0 | Yes | [NIST SP 800-122](https://csrc.nist.gov/pubs/sp/800/122/final) |
-| I5 | Deployment scope | Organization-wide = 2; Multiple teams = 1; Single team or pilot = 0 | No | [NIST CSF 2.0 ID.RA-04](https://doi.org/10.6028/NIST.CSWP.29) |
+| I1 | What if it failed or the vendor vanished? | Catastrophic = 3; Unacceptable = 2; Acceptable = 0 | Yes | [NIST CSF 2.0 GV.SC-04](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 ID.AM-05](https://doi.org/10.6028/NIST.CSWP.29) |
+| I2 | Supports critical work | Yes = 3; No = 0 | Yes | [NIST CSF 2.0 GV.SC-04](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 ID.AM-05](https://doi.org/10.6028/NIST.CSWP.29) |
+| I3 | Most sensitive data it will touch | Sensitive = 3; Confidential = 2; Internal = 1; Public = 0 | Yes | [FIPS 199](https://csrc.nist.gov/pubs/fips/199/final), [NIST CSF 2.0 ID.AM-05](https://doi.org/10.6028/NIST.CSWP.29) |
+| I4 | Could exposure hurt people? | Yes = 3; No = 0 | Yes | [NIST SP 800-122](https://csrc.nist.gov/pubs/sp/800/122/final) |
+| I5 | How widely it's used | Organization-wide = 2; Multiple teams = 1; Single team or pilot = 0 | No | [NIST CSF 2.0 ID.RA-04](https://doi.org/10.6028/NIST.CSWP.29) |
 | I6 | Access to our systems | Admin or write access = 2; Read-only integration = 1; Standalone, no integration = 0 | No | [NIST CSF 2.0 PR.AA-05](https://doi.org/10.6028/NIST.CSWP.29) |
 | I7 | Data about vulnerable people | Yes = 2; No = 0 | No | [NIST AI RMF 1.0 MAP 5.1](https://doi.org/10.6028/NIST.AI.100-1), [NIST SP 800-122](https://csrc.nist.gov/pubs/sp/800/122/final), [COPPA Rule 16 CFR Part 312](https://www.ecfr.gov/current/title-16/chapter-I/subchapter-C/part-312) |
 
@@ -97,18 +100,23 @@ These defaults only change when the guidance changes. See [CONTRIBUTING.md](CONT
 | ID | Factor | Answers | Required | Basis |
 |---|---|---|---|---|
 | P1 | Harmful content | Yes = +0.5×; No = +0× | Yes | **Org preference**; related: [NIST AI 600-1 2.3](https://doi.org/10.6028/NIST.AI.600-1), [NIST AI 600-1 2.11](https://doi.org/10.6028/NIST.AI.600-1) |
-| P2 | Data exploitation / vulnerable people | Yes = +0.5×; No = +0× | Yes | **Org preference**; related: [NIST AI 600-1 2.4](https://doi.org/10.6028/NIST.AI.600-1), [NIST AI RMF 1.0 MAP 5.1](https://doi.org/10.6028/NIST.AI.100-1) |
-| P3 | Training on our data / vendor access | Yes = +0.5×; No = +0× | Yes | **Org preference**; related: [NIST AI 600-1 2.4](https://doi.org/10.6028/NIST.AI.600-1), [NIST CSF 2.0 GV.SC-05](https://doi.org/10.6028/NIST.CSWP.29) |
+| P2 | Exploiting personal data or vulnerable people | Yes = +0.5×; No = +0× | Yes | **Org preference**; related: [NIST AI 600-1 2.4](https://doi.org/10.6028/NIST.AI.600-1), [NIST AI RMF 1.0 MAP 5.1](https://doi.org/10.6028/NIST.AI.100-1) |
+| P3 | Training on our data, vendor access | Yes = +0.5×; No = +0× | Yes | **Org preference**; related: [NIST AI 600-1 2.4](https://doi.org/10.6028/NIST.AI.600-1), [NIST CSF 2.0 GV.SC-05](https://doi.org/10.6028/NIST.CSWP.29) |
+| P4 | Data stored outside our country | Yes = +0.5×; No = +0× | Yes | **Org preference**; related: [NIST CSF 2.0 GV.SC-05](https://doi.org/10.6028/NIST.CSWP.29), [NIST SP 800-161 Rev. 1](https://doi.org/10.6028/NIST.SP.800-161r1), [GDPR Art. 44](https://gdpr-info.eu/art-44-gdpr/) |
+| P5 | Sanctioned country connection | Yes = +0.5×; No = +0× | Yes | **Org preference**; related: [NIST CSF 2.0 GV.SC-06](https://doi.org/10.6028/NIST.CSWP.29), [NIST SP 800-161 Rev. 1](https://doi.org/10.6028/NIST.SP.800-161r1), [U.S. Treasury OFAC](https://ofac.treasury.gov/sanctions-programs-and-country-information) |
+| P6 | Reproduces others' copyrighted content | Yes = +0.5×; No = +0× | Yes | **Org preference**; related: [NIST AI 600-1 2.9](https://doi.org/10.6028/NIST.AI.600-1), [U.S. Copyright Office](https://www.copyright.gov/ai/) |
+| P7 | Government surveillance or military use | Yes = +0.5×; No = +0× | Yes | **Org preference**; related: [NIST CSF 2.0 GV.SC-06](https://doi.org/10.6028/NIST.CSWP.29), [NIST SP 800-161 Rev. 1](https://doi.org/10.6028/NIST.SP.800-161r1) |
+| P8 | Hard to leave (lock-in) | Yes = +0.5×; No = +0× | Yes | **Org preference**; related: [NIST CSF 2.0 GV.SC-10](https://doi.org/10.6028/NIST.CSWP.29), [NIST SP 800-161 Rev. 1](https://doi.org/10.6028/NIST.SP.800-161r1) |
 
 #### Mitigations (score reduction)
 
 | ID | Factor | Answers | Required | Basis |
 |---|---|---|---|---|
-| M1 | Signed DPA with no-training + deletion | Yes = −10%; No = 0 | No | [NIST CSF 2.0 GV.SC-05](https://doi.org/10.6028/NIST.CSWP.29) |
-| M2 | Zero-retention / privacy mode enforced | Yes = −10%; No = 0 | No | [NIST CSF 2.0 GV.SC-05](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 PR.DS-01](https://doi.org/10.6028/NIST.CSWP.29) |
-| M3 | SSO + automated provisioning | Yes = −5%; No = 0 | No | [NIST CSF 2.0 PR.AA-01](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 PR.AA-05](https://doi.org/10.6028/NIST.CSWP.29) |
-| M4 | Technical data restrictions | Yes = −10%; No = 0 | No | [NIST CSF 2.0 PR.DS-01](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 PR.DS-02](https://doi.org/10.6028/NIST.CSWP.29) |
-| M5 | Time-boxed pilot | Yes = −5%; No = 0 | No | [NIST CSF 2.0 GV.SC-07](https://doi.org/10.6028/NIST.CSWP.29) |
+| M1 | Signed DPA: no training, deletion | Yes = −10%; No = 0 | No | [NIST CSF 2.0 GV.SC-05](https://doi.org/10.6028/NIST.CSWP.29) |
+| M2 | Zero-retention mode enforced | Yes = −10%; No = 0 | No | [NIST CSF 2.0 GV.SC-05](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 PR.DS-01](https://doi.org/10.6028/NIST.CSWP.29) |
+| M3 | SSO with automatic provisioning | Yes = −5%; No = 0 | No | [NIST CSF 2.0 PR.AA-01](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 PR.AA-05](https://doi.org/10.6028/NIST.CSWP.29) |
+| M4 | Sensitive data blocked by technical controls | Yes = −10%; No = 0 | No | [NIST CSF 2.0 PR.DS-01](https://doi.org/10.6028/NIST.CSWP.29), [NIST CSF 2.0 PR.DS-02](https://doi.org/10.6028/NIST.CSWP.29) |
+| M5 | Time-limited pilot | Yes = −5%; No = 0 | No | [NIST CSF 2.0 GV.SC-07](https://doi.org/10.6028/NIST.CSWP.29) |
 
 #### Risk bands
 

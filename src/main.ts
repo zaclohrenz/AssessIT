@@ -2,10 +2,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ask, open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
-import { bandFor, compute, draftMessage, formatDate, pathToApproval, summary, type Result } from "./engine";
+import { bandFor, compute, draftMessage, formatDate, isIgnored, pathToApproval, summary, type Result } from "./engine";
 import { chooseConfig, sanitizeConfig, type ConfigChoice } from "./orgconfig";
 import { reportPdf } from "./pdf";
-import { changedFromAi, STATUSES, decisionTone, fmtPts, listFields, REQUIRED_DETAILS, reviewFlags, SHAREPOINT_COLUMNS, webhookPayload, xlsxSheets } from "./report";
+import { APP_VERSION, changedFromAi, STATUSES, decisionTone, fmtPts, listFields, REQUIRED_DETAILS, reviewFlags, SHAREPOINT_COLUMNS, webhookPayload, xlsxSheets } from "./report";
 import { navStatus, sectionStatus, unreviewedAi as countUnreviewedAi, type Bubble, type BubbleKind } from "./status";
 import { manualPrompt, mergeResearch, parseManualResponse, researchPrompt, researchSchema, type ResearchOutput } from "./research";
 import {
@@ -178,6 +178,7 @@ function render() {
     </header>
     <nav id="nav"></nav>
     <main><div class="page" id="page"></div></main>
+    <button class="app-version" data-url="https://github.com/zaclohrenz/AssessIT/releases/tag/v${APP_VERSION}" title="Release notes for v${APP_VERSION} on GitHub">v${APP_VERSION}</button>
   </div>`;
   renderNav();
   renderPage();
@@ -408,7 +409,7 @@ const SECTION_BLURB: Record<Section, string> = {
 function visible(f: Factor): boolean {
   const ans = S.a.answers[f.id];
   if (S.filter === "review") return ans?.origin === "ai";
-  if (S.filter === "unanswered") return !ans?.response;
+  if (S.filter === "unanswered") return !ans?.response && !ans?.ignored;
   return true;
 }
 
@@ -452,6 +453,13 @@ function badges(f: Factor): string {
 function qRow(f: Factor): string {
   const ans = S.a.answers[f.id];
   const resp = ans?.response ?? "";
+  if (isIgnored(f, ans))
+    return `<div class="q ignored" id="q-${f.id}">
+    <div class="id">${esc(f.id)}</div>
+    <div><span class="text">${esc(f.question)}</span><span id="badges-${f.id}"><span class="badge edited">Ignored</span></span>
+      <div class="guide">Not scored, not required. Your report will say you ignored it.</div>
+      ${whyItMatters(f)}</div>
+    <div class="body"><div class="opts"><button class="btn small" data-ignore="${f.id}" data-val="">Include it again</button></div></div></div>`;
   const opts = f.options
     .map((o) => `<button class="opt ${resp === o.label ? "on" : ""}" data-opt="${f.id}" data-val="${esc(o.label)}" title="${esc(fmtPts(o.points, f.section))}">${esc(o.label)}</button>`)
     .join("");
@@ -459,9 +467,10 @@ function qRow(f: Factor): string {
     <div class="id">${esc(f.id)}</div>
     <div><span class="text">${esc(f.question)}</span><span id="badges-${f.id}">${badges(f)}</span>
       ${f.guidance ? `<div class="guide">${esc(f.guidance)}</div>` : ""}
-      <div class="refs">${basisChips(f)}</div></div>
+      ${basisChips(f) ? `<div class="refs">${basisChips(f)}</div>` : ""}
+      ${whyItMatters(f)}</div>
     <div class="body">
-      <div class="opts">${opts}${resp ? `<button class="btn small" data-opt="${f.id}" data-val="">Clear</button>` : ""}</div>
+      <div class="opts">${opts}${resp ? `<button class="btn small" data-opt="${f.id}" data-val="">Clear</button>` : ""}${f.ignorable ? `<button class="btn small ghost" data-ignore="${f.id}" data-val="1" title="Skip this question. It won't be scored or required.">Ignore</button>` : ""}</div>
       <div class="ev">
         <textarea placeholder="Notes / evidence" data-ans="${f.id}" data-field="notes">${esc(ans?.notes ?? "")}</textarea>
         <textarea placeholder="Source URL(s)" data-ans="${f.id}" data-field="sources">${esc(ans?.sources ?? "")}</textarea>
@@ -471,17 +480,36 @@ function qRow(f: Factor): string {
 
 const refLabel = (r: Reference) => `${r.source}${r.id ? ` ${r.id}` : ""}`;
 
+/** Small tag on the question line: only org preferences get one. Citations live under "Why it matters". */
 function basisChips(f: Factor): string {
-  const chips = f.references
+  return f.basis === "preference" ? `<span class="ref pref" title="A values choice, not published guidance. Each 'Yes' scales the whole score.">Org preference</span>` : "";
+}
+
+/** Collapsed by default: the rationale, then the NIST / CISA / OWASP sources behind it. */
+function whyItMatters(f: Factor): string {
+  const links = f.references
     .map((r) => `<button class="ref" data-url="${esc(r.url)}" title="${esc(r.title)}">${esc(refLabel(r))}</button>`)
     .join("");
-  if (f.basis === "preference")
-    return `<span class="ref pref" title="${esc(f.justification)}">Org preference</span>${chips ? `<span class="muted" style="font-size:11px">related:</span>${chips}` : ""}`;
-  return chips;
+  if (!f.justification && !links) return "";
+  return `<details class="why"><summary>Why it matters</summary>
+    ${f.justification ? `<p>${esc(f.justification)}</p>` : ""}
+    ${f.ignorable && f.ignoreNote ? `<p><b>Why you can ignore this:</b> ${esc(f.ignoreNote)}</p>` : ""}
+    ${links ? `<div class="refs"><span class="muted">${f.basis === "preference" ? "Related guidance:" : "Sources:"}</span>${links}</div>` : ""}</details>`;
 }
 
 function answer(id: string): Answer {
   return (S.a.answers[id] ??= { response: "", notes: "", sources: "", origin: "user" });
+}
+
+/** Redraws one question, keeping "Why it matters" open if the reader had it open. */
+function rerenderRow(id: string) {
+  const f = policy().factors.find((x) => x.id === id)!;
+  const row = $(`#q-${id}`);
+  const open = !!row?.querySelector("details.why[open]");
+  if (row && visible(f)) {
+    row.outerHTML = qRow(f);
+    if (open) $(`#q-${id} details.why`)?.setAttribute("open", "");
+  } else row?.remove();
 }
 
 /** Any edit by the person makes the answer theirs. */
@@ -1262,7 +1290,7 @@ const actions: Record<string, () => unknown> = {
 };
 
 function onClick(e: MouseEvent) {
-  const el = (e.target as HTMLElement).closest<HTMLElement>("[data-tab],[data-action],[data-opt],[data-vopt],[data-filter],[data-accept],[data-url],[data-section]");
+  const el = (e.target as HTMLElement).closest<HTMLElement>("[data-tab],[data-action],[data-opt],[data-ignore],[data-vopt],[data-filter],[data-accept],[data-url],[data-section]");
   if (!el) return;
   const ds = el.dataset;
   if (ds.vopt) {
@@ -1294,10 +1322,17 @@ function onClick(e: MouseEvent) {
     touch(id);
     answer(id).response = ds.val ?? "";
     persist();
-    const f = policy().factors.find((x) => x.id === id)!;
-    const row = $(`#q-${id}`);
-    if (row && visible(f)) row.outerHTML = qRow(f);
-    else row?.remove();
+    rerenderRow(id);
+    refreshDerived();
+  } else if (ds.ignore) {
+    const id = ds.ignore;
+    const ans = answer(id);
+    if (ds.val) {
+      // Ignoring drops what was there, so an unreviewed AI answer can't linger on a skipped question.
+      Object.assign(ans, { response: "", notes: "", sources: "", origin: "user", ignored: true, confidence: undefined, needsConfirmation: false, aiResponse: undefined });
+    } else delete ans.ignored;
+    persist();
+    rerenderRow(id);
     refreshDerived();
   } else if (ds.accept) {
     touch(ds.accept);
