@@ -35,13 +35,15 @@ Rust tests: `cargo test --manifest-path src-tauri/Cargo.toml`.
 
 ## Pull request titles
 
-Releases are automated from PR titles, so use [Conventional Commits](https://www.conventionalcommits.org/):
+Each release's notes list the titles of the PRs merged since the last release, so use [Conventional Commits](https://www.conventionalcommits.org/) titles. A check on every PR enforces this.
 
-| Title starts with | Meaning | Version bump |
-|---|---|---|
-| `fix: …` | Bug fix | patch (0.1.0 → 0.1.1) |
-| `feat: …` | New feature | minor (0.1.0 → 0.2.0) |
-| `feat!: …` or a `BREAKING CHANGE:` footer | Incompatible change, such as policy file format | major |
-| `docs:`, `chore:`, `ci:`, `test:`, `refactor:` | No user-facing change | none |
+| Title starts with | Meaning |
+|---|---|
+| `fix: …` | Bug fix |
+| `feat: …` | New feature |
+| `feat!: …` | Incompatible change, such as the policy file format |
+| `docs:`, `chore:`, `ci:`, `test:`, `refactor:` | No user-facing change |
 
-Use the `scoring` scope for anything that changes scoring results, for example `fix(scoring): …`, so organizations can spot those changes in the changelog.
+Titles don't trigger releases. A maintainer releases by hand (README → "Releasing") and picks the version then.
+
+Use the `scoring` scope for anything that changes scoring results, for example `fix(scoring): …`, so organizations can spot those changes in the release notes.

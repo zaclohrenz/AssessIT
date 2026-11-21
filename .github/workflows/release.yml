@@ -1,60 +1,94 @@
 name: Release
 
-# How releases happen (see README → "Releasing"):
-#   1. PRs are merged into main with Conventional Commit titles (feat:, fix:, …).
-#   2. release-please keeps a "chore(main): release x.y.z" PR open with the changelog and version bump.
-#   3. Merging that PR makes a *draft* release and its vX.Y.Z tag. The jobs below build the Mac and
-#      Windows apps and attach them, then publish it and point the Homebrew cask at it.
+# Releases are manual: Actions → Release → Run workflow, pick patch/minor/major (or type a version).
 #
-# Why a draft: the repo uses GitHub's immutable releases, so nothing can be attached after a release
-# is published. If a build fails, the release stays a draft; re-run the failed job to finish it.
+#   plan      works out the version from package.json and checks the tag name is free
+#   macos     tests and builds the universal Mac zip    ┐ in parallel, from the same commit.
+#   windows   builds the Windows installer              ┘ Nothing is public yet.
+#   publish   waits for approval if the "release" environment requires it, then in one go:
+#             commits the version + Homebrew cask, creates the tag and the GitHub release with
+#             every file attached, and fast-forwards main.
+#
+# If anything fails before publish, nothing has changed anywhere: fix it and run the workflow again.
+# The repo uses GitHub's immutable releases, so a published release (and its tag name) is final.
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the version to increase
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      version:
+        description: Or an exact version (e.g. 1.0.0). Leave blank to use the bump above.
+        type: string
+        required: false
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
-  release-please:
+  plan:
     runs-on: ubuntu-latest
     outputs:
-      created: ${{ steps.rp.outputs.release_created }}
-      tag: ${{ steps.rp.outputs.tag_name }}
-      version: ${{ steps.rp.outputs.version }}
-      sha: ${{ steps.rp.outputs.sha }}
+      version: ${{ steps.v.outputs.version }}
+      sha: ${{ steps.v.outputs.sha }}
     steps:
-      # 1. Turn a merged release PR into a draft release (no release PRs yet).
-      - id: rp
-        uses: googleapis/release-please-action@v5
+      - uses: actions/checkout@v6
         with:
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
-          skip-github-pull-request: true
-      # 2. Drafts get no git tag until published, and release-please finds the last release by its tag.
-      #    Without this, step 3 can't see the release it just made and opens a release PR for it again.
-      - if: steps.rp.outputs.release_created == 'true'
+          ref: main
+      - id: v
+        env:
+          BUMP: ${{ inputs.bump }}
+          EXACT: ${{ inputs.version }}
+        run: |
+          version=$(node -e '
+            const cur = require("./package.json").version.split(".").map(Number);
+            const exact = process.env.EXACT.trim().replace(/^v/, "");
+            let next;
+            if (exact) {
+              if (!/^\d+\.\d+\.\d+$/.test(exact)) { console.error(`Not a version: ${exact}`); process.exit(1); }
+              next = exact.split(".").map(Number);
+              const newer = next[0] - cur[0] || next[1] - cur[1] || next[2] - cur[2];
+              if (newer <= 0) { console.error(`${exact} is not newer than the current ${cur.join(".")}`); process.exit(1); }
+            } else {
+              const i = { major: 0, minor: 1, patch: 2 }[process.env.BUMP];
+              next = cur.map((n, j) => (j < i ? n : j === i ? n + 1 : 0));
+            }
+            console.log(next.join("."));
+          ')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "### Releasing v$version from \`$(git rev-parse --short HEAD)\`" >> "$GITHUB_STEP_SUMMARY"
+      - name: Check the tag name is free
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh api "repos/${{ github.repository }}/git/refs" -f ref="refs/tags/${{ steps.rp.outputs.tag_name }}" -f sha="${{ steps.rp.outputs.sha }}"
-      # 3. Open or update the release PR for whatever comes next.
-      - uses: googleapis/release-please-action@v5
-        with:
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
-          skip-github-release: true
+          TAG: v${{ steps.v.outputs.version }}
+          SHA: ${{ steps.v.outputs.sha }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            echo "::error::$TAG already exists. Pick a newer version."; exit 1
+          fi
+          # GitHub never frees the tag names of deleted immutable releases, and git can't see them.
+          # Creating (and immediately deleting) the tag finds out now instead of after the builds.
+          if ! gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$SHA" >/dev/null; then
+            echo "::error::GitHub won't allow the tag $TAG (it probably belonged to a deleted release). Pick a newer version."; exit 1
+          fi
+          gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG"
 
   macos:
-    needs: release-please
-    if: needs.release-please.outputs.created == 'true'
+    needs: plan
     runs-on: macos-latest
     outputs:
       sha256: ${{ steps.pkg.outputs.sha256 }}
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ needs.release-please.outputs.sha }}
+          ref: ${{ needs.plan.outputs.sha }}
       - uses: actions/setup-node@v6
         with:
           node-version: 22
@@ -62,66 +96,88 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - run: node scripts/set-version.mjs ${{ needs.plan.outputs.version }}
       - run: npm ci
+      - run: npx tsc --noEmit
       - run: npm test
       - run: cargo test --manifest-path src-tauri/Cargo.toml
       - id: pkg
         run: |
           out=$(scripts/package-mac.sh | tail -2)
-          echo "zip=$(echo "$out" | head -1)" >> "$GITHUB_OUTPUT"
           echo "sha256=$(echo "$out" | tail -1)" >> "$GITHUB_OUTPUT"
       - run: node scripts/build-release-config.mjs
-      - name: Attach to the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release upload "${{ needs.release-please.outputs.tag }}" --clobber \
-            "${{ steps.pkg.outputs.zip }}" release/assessit-config.json release/default-policy.json
+      - uses: actions/upload-artifact@v6
+        with:
+          name: macos
+          path: |
+            release/*.zip
+            release/assessit-config.json
+            release/default-policy.json
+          if-no-files-found: error
 
   windows:
-    needs: release-please
-    if: needs.release-please.outputs.created == 'true'
+    needs: plan
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ needs.release-please.outputs.sha }}
+          ref: ${{ needs.plan.outputs.sha }}
       - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
+      - run: node scripts/set-version.mjs ${{ needs.plan.outputs.version }}
       - run: npm ci
       - run: npx tauri build --bundles nsis
-      - name: Attach to the release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ needs.release-please.outputs.tag }}" --clobber src-tauri/target/release/bundle/nsis/*.exe
+      - uses: actions/upload-artifact@v6
+        with:
+          name: windows
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
 
   publish:
-    # Only once every download is attached: after this the release can't change.
-    needs: [release-please, macos, windows]
+    needs: [plan, macos, windows]
     runs-on: ubuntu-latest
-    steps:
-      - env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: gh release edit "${{ needs.release-please.outputs.tag }}" --draft=false --latest
-
-  homebrew:
-    # Homebrew users get the update on their next `brew upgrade` (brew refreshes taps automatically).
-    needs: [release-please, macos, publish]
-    runs-on: ubuntu-latest
+    # To approve each release by hand: Settings → Environments → release → Required reviewers.
+    # The builds can be downloaded from this run's summary while it waits.
+    environment: release
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: main
-      - name: Point the cask at this release
+          ref: ${{ needs.plan.outputs.sha }}
+      - uses: actions/download-artifact@v7
+        with:
+          path: out
+          merge-multiple: true
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ needs.plan.outputs.version }}
+          SHA: ${{ needs.plan.outputs.sha }}
+          CASK_SHA: ${{ needs.macos.outputs.sha256 }}
         run: |
-          version="${{ needs.release-please.outputs.version }}"
-          sed -i -E "s/^  version \".*\"/  version \"${version}\"/" Casks/assessit.rb
-          sed -i -E "s/^  sha256 \".*\"/  sha256 \"${{ needs.macos.outputs.sha256 }}\"/" Casks/assessit.rb
+          ls -l out
+          node scripts/set-version.mjs "$V"
+          sed -i -E "s/^  version \".*\"/  version \"$V\"/; s/^  sha256 \".*\"/  sha256 \"$CASK_SHA\"/" Casks/assessit.rb
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "chore: update Homebrew cask to ${version}" && git push || echo "Cask already up to date"
+          git commit -am "chore(release): v$V"
+          commit=$(git rev-parse HEAD)
+
+          # The release must contain exactly what was built and tested.
+          if [ "$(git ls-remote origin refs/heads/main | cut -f1)" != "$SHA" ]; then
+            echo "::error::main changed while this release was building. Run the Release workflow again."; exit 1
+          fi
+
+          # The release needs its commit on GitHub first; park it on a temporary branch.
+          branch="release-v$V"
+          git push origin "HEAD:refs/heads/$branch"
+          # Creates a draft, uploads every file, then publishes: nothing is public until it's complete.
+          if ! gh release create "v$V" out/* --target "$commit" --title "AssessIT $V" --generate-notes --latest; then
+            git push origin --delete "$branch"; exit 1
+          fi
+          if ! git push origin "HEAD:main"; then
+            echo "::error::v$V is published, but main moved in the meantime. Merge the $branch branch into main to bring over the version and cask."; exit 1
+          fi
+          git push origin --delete "$branch"
+          echo "### Published [v$V](https://github.com/$GITHUB_REPOSITORY/releases/tag/v$V)" >> "$GITHUB_STEP_SUMMARY"

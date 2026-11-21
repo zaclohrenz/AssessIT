@@ -168,16 +168,26 @@ Setup takes about 20 minutes for a SharePoint admin: the list, permissions, a fr
 
 ## Releasing
 
-Releases are automated with [release-please](https://github.com/googleapis/release-please), the same setup many large open-source projects use:
+Merging pull requests never releases anything. To ship what's on `main`:
 
-1. **Merge PRs with [Conventional Commit](https://www.conventionalcommits.org/) titles:** `fix: …` (patch), `feat: …` (minor), `feat!: …` (major). A check on every PR enforces this.
-2. **release-please keeps a "Release PR" open.** It collects every change since the last release into `CHANGELOG.md` and bumps the version in `package.json`, `tauri.conf.json` and `Cargo.toml`. It updates itself as more PRs merge.
-3. **Merge the Release PR when you want to ship.** That creates a draft GitHub release with those notes and tags `vX.Y.Z`. The workflow then builds and attaches:
-   - the universal macOS zip and the Windows installer;
-   - the public default config and policy.
+1. Go to **Actions → Release → Run workflow**.
+2. Pick **patch**, **minor** or **major**, or type an exact version, and click **Run workflow**.
 
-   Once everything is attached, it publishes the release and commits an updated `Casks/assessit.rb` (new version and checksum) to `main`. The repo uses GitHub's immutable releases, so a published release can't be changed; if a build fails, the release stays a draft until you re-run the failed job.
-4. **Homebrew users get it on their next `brew upgrade`**, since Homebrew refreshes taps automatically. Organizations can schedule this with `brew autoupdate` or their MDM.
+The workflow:
+1. works out the version and checks the tag name is free;
+2. tests and builds the universal macOS zip and the Windows installer, in parallel;
+3. if you've required approval, waits for it (the builds can be downloaded from the run while it waits);
+4. publishes in one step:
+   - the `vX.Y.Z` tag and the GitHub release, with the apps, the public default config and policy attached, and notes listing the PRs merged since the last release;
+   - a commit on `main` with the new version and an updated `Casks/assessit.rb`.
+
+**If any step fails, nothing has changed:** no tag, no release, no commit. Fix the problem and run it again. Don't merge into `main` while a release is building; the workflow stops rather than release something it didn't test.
+
+**One-time setup:**
+- To approve each release by hand, add yourself under **Settings → Environments → release → Required reviewers**. The environment appears after the first run, or create it yourself.
+- If you protect `main`, let GitHub Actions bypass the protection, because the release pushes its version commit there.
+
+The repo uses GitHub's immutable releases: once published, a release can't change, and its tag name can never be reused, even if the release is deleted. Homebrew users get each release on their next `brew upgrade`.
 
 ## Development
 

@@ -1,5 +1,5 @@
 cask "assessit" do
-  version "0.1.0"
+  version "0.1.1"
   sha256 "REPLACED_BY_RELEASE_WORKFLOW"
 
   url "https://github.com/zaclohrenz/AssessIT/releases/download/v#{version}/AssessIT-#{version}-macos-universal.zip"
