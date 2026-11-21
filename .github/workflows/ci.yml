@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci
+      - run: npx tsc --noEmit
+      # Unit tests, the 45 golden scoring cases from the reference spreadsheet,
+      # citation checks on the default policy, and SCORING.md drift.
+      - run: npm test
+      - run: npx vite build
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  windows:
+    # Catches Windows-only Rust (registry lookups, process flags) before release day.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: New-Item -ItemType Directory -Force dist; Set-Content dist/index.html "<!doctype html>"
+      - run: cargo check --manifest-path src-tauri/Cargo.toml

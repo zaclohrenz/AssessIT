@@ -1,0 +1,24 @@
+{
+  "assessitConfig": 1,
+  "name": "Contoso AssessIT config (managed)",
+  "lock": true,
+  "rules": {
+    "allowOverride": false,
+    "allowYolo": false,
+    "allowBulkReview": false
+  },
+  "org": {
+    "orgName": "Contoso",
+    "reviewTeam": "Contoso IT Risk Review",
+    "policyLink": "https://intranet.contoso.com/policies/software-and-ai"
+  },
+  "submit": {
+    "method": "sharepoint",
+    "tenant": "contoso.onmicrosoft.com",
+    "clientId": "00000000-0000-0000-0000-000000000000",
+    "siteUrl": "https://contoso.sharepoint.com/sites/ITRisk",
+    "listName": "Software Risk Assessments"
+  },
+  "model": "sonnet",
+  "policyUrl": "https://github.com/zaclohrenz/AssessIT/releases/latest/download/default-policy.json"
+}

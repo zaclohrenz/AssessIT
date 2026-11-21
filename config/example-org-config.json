@@ -1,0 +1,17 @@
+{
+  "assessitConfig": 1,
+  "name": "Contoso AssessIT config",
+  "org": {
+    "orgName": "Contoso",
+    "reviewTeam": "Contoso IT Risk Review",
+    "policyLink": "https://intranet.contoso.com/policies/software-and-ai"
+  },
+  "submit": {
+    "method": "sharepoint",
+    "tenant": "contoso.onmicrosoft.com",
+    "clientId": "00000000-0000-0000-0000-000000000000",
+    "siteUrl": "https://contoso.sharepoint.com/sites/ITRisk",
+    "listName": "Software Risk Assessments"
+  },
+  "model": "sonnet"
+}

@@ -1,0 +1,20 @@
+# CISA BOD 26-04 remediation timelines. Transcribed from BOD 26-04 (June 10, 2026), Table 1:
+# https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk
+# Don't edit to make a test pass: change only if CISA revises the directive, and cite it.
+row,publicly_exposed,in_kev,automatable,technical_impact,timeline
+1,yes,yes,yes,total,3 days & forensic triage
+2,yes,yes,yes,partial,3 days
+3,yes,yes,no,total,3 days & forensic triage
+4,yes,yes,no,partial,14 days
+5,yes,no,yes,total,3 days
+6,yes,no,yes,partial,14 days
+7,yes,no,no,total,14 days
+8,yes,no,no,partial,60 days
+9,no,yes,yes,total,3 days & forensic triage
+10,no,yes,yes,partial,14 days
+11,no,yes,no,total,14 days
+12,no,yes,no,partial,14 days
+13,no,no,yes,total,60 days
+14,no,no,yes,partial,60 days
+15,no,no,no,total,Fix on system upgrade
+16,no,no,no,partial,Fix on system upgrade

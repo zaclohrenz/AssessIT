@@ -1,0 +1,129 @@
+{
+  "type": "object",
+  "properties": {
+    "source": {
+      "type": "string"
+    },
+    "appVersion": {
+      "type": "string"
+    },
+    "submittedAt": {
+      "type": "string"
+    },
+    "organization": {
+      "type": "string"
+    },
+    "test": {
+      "type": "boolean"
+    },
+    "fields": {
+      "type": "object",
+      "properties": {
+        "Title": {
+          "type": "string"
+        },
+        "Vendor": {
+          "type": "string"
+        },
+        "Product": {
+          "type": "string"
+        },
+        "Plan": {
+          "type": "string"
+        },
+        "RequestingTeam": {
+          "type": "string"
+        },
+        "BusinessOwner": {
+          "type": "string"
+        },
+        "IntendedUse": {
+          "type": "string"
+        },
+        "AssessmentDate": {
+          "type": "string"
+        },
+        "Assessors": {
+          "type": "string"
+        },
+        "RiskScore": {
+          "type": "number"
+        },
+        "RiskBand": {
+          "type": "string"
+        },
+        "LikelihoodScore": {
+          "type": "number"
+        },
+        "ImpactScore": {
+          "type": "number"
+        },
+        "Decision": {
+          "type": "string"
+        },
+        "CalculatedDecision": {
+          "type": "string"
+        },
+        "OverrideJustification": {
+          "type": "string"
+        },
+        "RiskAcceptedBy": {
+          "type": "string"
+        },
+        "ReReviewDate": {
+          "type": "string"
+        },
+        "Conditions": {
+          "type": "string"
+        },
+        "Summary": {
+          "type": "string"
+        },
+        "DraftMessage": {
+          "type": "string"
+        },
+        "Answers": {
+          "type": "string"
+        },
+        "ReviewFlags": {
+          "type": "string"
+        },
+        "ChangedFromAI": {
+          "type": "string"
+        },
+        "AssessmentJSON": {
+          "type": "string"
+        },
+        "Status": {
+          "type": "string"
+        }
+      }
+    },
+    "result": {
+      "type": "object"
+    },
+    "assessment": {
+      "type": "object"
+    },
+    "policy": {
+      "type": "object"
+    },
+    "reviewFlags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "changedFromAi": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "ai": { "type": "string" },
+          "now": { "type": "string" }
+        }
+      }
+    }
+  }
+}

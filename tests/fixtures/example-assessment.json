@@ -1,0 +1,180 @@
+{
+  "details": {
+    "vendor": "Anthropic, PBC",
+    "product": "Claude",
+    "plan": "Enterprise",
+    "requestingTeam": "IT",
+    "businessOwner": "Example Owner",
+    "intendedUse": "Drafting, research, analysis, and IT/coding assistance. No personal data of members or staff, no credentials or secrets.",
+    "assessmentDate": "2026-10-21",
+    "assessors": "Example Assessor",
+    "resources": "Anthropic Trust Center and SOC/ISO listings (support.claude.com/en/articles/10015870); Fortune 2026-07-31; The Register 2026-03-31; TechCrunch 2025-08-28; privacy.claude.com training and retention articles; support.claude.com 10440198, 13133195, 13917894; code.claude.com permission modes; Anthropic Usage Policy; Anthropic system cards. Sub-processor list not retrieved.",
+    "override": "",
+    "overrideJustification": "",
+    "riskAcceptedBy": ""
+  },
+  "answers": {
+    "L1": {
+      "response": "No",
+      "notes": "SOC 2 Type I and Type II, ISO/IEC 27001:2022, and ISO/IEC 42001:2023 are listed by Anthropic. Reports are in the Trust Portal.",
+      "sources": "https://support.claude.com/en/articles/10015870",
+      "origin": "user"
+    },
+    "L2": {
+      "response": "Yes",
+      "notes": "Not a confirmed breach of Anthropic-held customer data. Scored Yes because Anthropic disclosed on 2026-07-30 that Claude models (Opus 4.7, Mythos 5, an internal model) compromised three outside organizations' infrastructure during testing; earliest incidents April 2026. The Claude Code npm source leak (2026-03-31) was called a packaging error; Anthropic said no customer data or credentials were exposed.",
+      "sources": "https://fortune.com/2026/07/31/anthropic-claude-ai-hacked-companies-testing/ ; https://www.theregister.com/2026/03/31/anthropic_claude_code_source_code",
+      "origin": "user"
+    },
+    "L3": {
+      "response": "Yes",
+      "notes": "Aug 2025 consumer terms change: chats used for model training by default unless users opted out by 2025-09-28. Commercial (Team, Enterprise, API) data is excluded by default. See L2 for the 2026 test-breach disclosure.",
+      "sources": "https://techcrunch.com/2025/08/28/anthropic-users-face-a-new-choice-opt-out-or-share-your-data-for-ai-training",
+      "origin": "user"
+    },
+    "L4": {
+      "response": "No",
+      "notes": "Founded 2021 and headcount is well above 200. Yes requires BOTH fewer than 200 staff AND under 5 years. Headcount is not stated on Anthropic's company page, so the staff figure is unverified; the age test alone fails.",
+      "sources": "https://www.anthropic.com/company",
+      "origin": "user"
+    },
+    "L5": {
+      "response": "No",
+      "notes": "Anthropic names each Claude model and publishes system cards that describe training data and evaluations.",
+      "sources": "https://www.anthropic.com/system-cards",
+      "origin": "user"
+    },
+    "L6": {
+      "response": "No",
+      "notes": "Assumed purchased through IT procurement. Confirm no card purchase or self-sign-up before approval.",
+      "sources": "",
+      "origin": "user"
+    },
+    "L7": {
+      "response": "Not rated",
+      "notes": "No public third-party security rating located in this pass. Scored as Not rated (2 pts). Re-check with a rating tool at re-review.",
+      "sources": "https://trust.anthropic.com",
+      "origin": "user"
+    },
+    "L8": {
+      "response": "No",
+      "notes": "No acquisition, merger, or ownership change in the last 12 months found in news search as of 2026-10-21.",
+      "sources": "",
+      "origin": "user"
+    },
+    "L9": {
+      "response": "Yes",
+      "notes": "Hosting runs on third-party cloud providers (fourth parties). Sub-processor list was not retrieved in this pass; verify before approval.",
+      "sources": "https://trust.anthropic.com/subprocessors",
+      "origin": "user"
+    },
+    "L10": {
+      "response": "Yes",
+      "notes": "Claude Code and connectors can edit files, run commands, and call tools. Auto mode uses a classifier instead of a person for each action, so per-action approval is optional.",
+      "sources": "https://code.claude.com/docs/en/permission-modes",
+      "origin": "user"
+    },
+    "L11": {
+      "response": "No",
+      "notes": "SSO (SAML/OIDC) is available on Team and Enterprise plans. MFA must be enforced at the identity provider.",
+      "sources": "https://support.claude.com/en/articles/13917894",
+      "origin": "user"
+    },
+    "L12": {
+      "response": "No",
+      "notes": "Enterprise custom retention: admins set a period (30-day minimum), and data past retention is permanently deleted. Confirm deletion-on-request wording in the signed contract.",
+      "sources": "https://support.claude.com/en/articles/10440198",
+      "origin": "user"
+    },
+    "I1": {
+      "response": "Acceptable",
+      "notes": "Productivity tool, not on a critical path. An outage has manual workarounds.",
+      "sources": "",
+      "origin": "user"
+    },
+    "I2": {
+      "response": "No",
+      "notes": "Not used for finance, payments, or core operations.",
+      "sources": "",
+      "origin": "user"
+    },
+    "I3": {
+      "response": "Confidential",
+      "notes": "Policy limits use to non-PII work: no member or staff personal data, no credentials or secrets. If that limit is not enforced, change to Sensitive.",
+      "sources": "",
+      "origin": "user"
+    },
+    "I4": {
+      "response": "No",
+      "notes": "Confidential business content under the policy limit above.",
+      "sources": "",
+      "origin": "user"
+    },
+    "I5": {
+      "response": "Multiple teams",
+      "notes": "Requested by DTS; expected use spreads to other teams.",
+      "sources": "",
+      "origin": "user"
+    },
+    "I6": {
+      "response": "Admin or write access",
+      "notes": "Claude Code and connectors act with the user's permissions on connected systems (for example Microsoft 365 and Azure). Scope through connector permissions.",
+      "sources": "",
+      "origin": "user"
+    },
+    "I7": {
+      "response": "No",
+      "notes": "Intended use excludes data about minors or vulnerable people.",
+      "sources": "",
+      "origin": "user"
+    },
+    "P1": {
+      "response": "No",
+      "notes": "Usage policy bans explicit, violent, deceptive, and degrading content. Safeguards Team monitors violations and real-time safeguards can block outputs.",
+      "sources": "https://www.anthropic.com/legal/aup",
+      "origin": "user"
+    },
+    "P2": {
+      "response": "No",
+      "notes": "Commercial data is not used for training by default. The 2025 consumer training change is scored under L3, not here.",
+      "sources": "https://privacy.claude.com/en/articles/7996868-is-my-data-used-for-model-training",
+      "origin": "user"
+    },
+    "P3": {
+      "response": "No",
+      "notes": "Enforceable opt-out exists: owners can turn off feedback ('Rate chats') under Organization settings > Data and Privacy. Submitted feedback may be kept up to 5 years.",
+      "sources": "https://privacy.claude.com/en/articles/7996868-is-my-data-used-for-model-training",
+      "origin": "user"
+    },
+    "M1": {
+      "response": "No",
+      "notes": "DPA and commercial terms exist; signature not verified. Set to Yes once we has signed.",
+      "sources": "",
+      "origin": "user"
+    },
+    "M2": {
+      "response": "No",
+      "notes": "Admin-enforced zero retention is not confirmed. Retention is configurable on Enterprise (see L12).",
+      "sources": "https://support.claude.com/en/articles/10440198",
+      "origin": "user"
+    },
+    "M3": {
+      "response": "Yes",
+      "notes": "Enterprise supports SCIM provisioning with SSO. Credit applies only once SSO and SCIM are configured for named users. Change to No if not done.",
+      "sources": "https://support.claude.com/en/articles/13133195",
+      "origin": "user"
+    },
+    "M4": {
+      "response": "No",
+      "notes": "No DLP or CASB control verified for this tool.",
+      "sources": "",
+      "origin": "user"
+    },
+    "M5": {
+      "response": "No",
+      "notes": "Not a time-boxed pilot.",
+      "sources": "",
+      "origin": "user"
+    }
+  }
+}
