@@ -5,6 +5,7 @@
       "release-type": "node",
       "package-name": "assessit",
       "include-component-in-tag": false,
+      "draft": true,
       "changelog-sections": [
         { "type": "feat", "section": "Features" },
         { "type": "fix", "section": "Bug fixes" },
