@@ -89,6 +89,64 @@ export function whatIf<K extends VulnKey>(x: VulnAnswers, key: K, value: NonNull
   return { decision: cisaResult(y), timeline: timelineResult(y) };
 }
 
+// ---------------- Partial answers: what's already settled? ----------------
+
+export const DECISION_KEYS: VulnKey[] = ["exploitation", "automatable", "technicalImpact", "missionPrevalence", "wellBeing"];
+export const TIMELINE_KEYS: VulnKey[] = ["publiclyExposed", "inKev", "automatable", "technicalImpact"];
+
+const optionValues = (k: VulnKey) => VULN_QUESTIONS.find((q) => q.key === k)!.options.map((o) => o.value);
+
+/** Every result still reachable by answering the questions in `keys` that are blank in `x`. */
+function reachable<R>(x: VulnAnswers, keys: VulnKey[], result: (full: VulnAnswers) => R): Set<R> {
+  const out = new Set<R>();
+  const walk = (i: number, y: VulnAnswers) => {
+    if (i === keys.length) return void out.add(result(y));
+    const k = keys[i];
+    if (y[k]) return walk(i + 1, y);
+    for (const v of optionValues(k)) walk(i + 1, { ...y, [k]: v });
+  };
+  walk(0, x);
+  return out;
+}
+
+export interface Progress<R> {
+  /** Results still possible, mildest first. One entry means the rest of the answers can't change it. */
+  possible: R[];
+  /** The result, once no remaining answer can change it (also true when everything is answered). */
+  settled: R | null;
+  /** When settled: the fewest answers that already force the result. */
+  decidedBy: VulnKey[];
+}
+
+function progress<R>(x: VulnAnswers, keys: VulnKey[], result: (full: VulnAnswers) => R, order: R[]): Progress<R> {
+  const seen = reachable(x, keys, result);
+  const possible = order.filter((r) => seen.has(r));
+  const settled = possible.length === 1 ? possible[0] : null;
+  let decidedBy: VulnKey[] = [];
+  if (settled !== null) {
+    decidedBy = keys.filter((k) => x[k]);
+    // Drop each answer that isn't needed: the result stays the same without it.
+    for (const k of [...decidedBy]) {
+      const rest = decidedBy.filter((j) => j !== k);
+      const without = Object.fromEntries(rest.map((j) => [j, x[j]])) as VulnAnswers;
+      if (reachable(without, keys, result).size === 1) decidedBy = rest;
+    }
+  }
+  return { possible, settled, decidedBy };
+}
+
+const DECISION_ORDER: CisaDecision[] = ["Track", "Track*", "Attend", "Act"];
+const TIMELINE_ORDER: Timeline[] = ["upgrade", "60d", "14d", "3d", "3d+forensic"];
+
+export const decisionProgress = (x: VulnAnswers) => progress(x, DECISION_KEYS, (y) => cisaResult(y)!, DECISION_ORDER);
+export const timelineProgress = (x: VulnAnswers) => progress(x, TIMELINE_KEYS, (y) => timelineResult(y)!, TIMELINE_ORDER);
+
+/** "Exploitation: Active" for a chip. */
+export function answerChip(x: VulnAnswers, key: VulnKey): string {
+  const q = VULN_QUESTIONS.find((v) => v.key === key)!;
+  return `${q.label}: ${q.options.find((o) => o.value === x[key])?.label ?? ""}`;
+}
+
 // ---------------- Questions and meanings ----------------
 
 export interface VulnQuestion {
@@ -322,7 +380,7 @@ export function triageText(cve: CveSummary | null, x: VulnAnswers, kev: KevEntry
   const lines = [
     cve ? `${cve.id}${cve.title ? `: ${cve.title}` : ""}` : "Vulnerability triage",
     d ? `CISA SSVC decision: ${d} (${DECISION_MEANING[d].summary.toLowerCase()})` : "CISA SSVC decision: not enough answers yet",
-    tl ? `BOD 26-04 remediation timeline: ${TIMELINE_MEANING[tl].label}` : "BOD 26-04 remediation timeline: not enough answers yet",
+    tl ? `Suggested timeline (based on BOD 26-04): ${TIMELINE_MEANING[tl].label}` : "Suggested timeline (based on BOD 26-04): not enough answers yet",
     "",
     ...VULN_QUESTIONS.map((q) => `${q.label}: ${q.options.find((o) => o.value === x[q.key])?.label ?? "(not answered)"}`),
   ];

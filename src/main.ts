@@ -6,6 +6,7 @@ import { bandFor, compute, draftMessage, formatDate, isIgnored, pathToApproval, 
 import { chooseConfig, sanitizeConfig, type ConfigChoice } from "./orgconfig";
 import { reportPdf } from "./pdf";
 import { APP_VERSION, changedFromAi, STATUSES, decisionTone, fmtPts, listFields, REQUIRED_DETAILS, reviewFlags, SHAREPOINT_COLUMNS, webhookPayload, xlsxSheets } from "./report";
+import { isNewer, releaseUrl, type UpdateState } from "./update";
 import { navStatus, sectionStatus, unreviewedAi as countUnreviewedAi, type Bubble, type BubbleKind } from "./status";
 import { manualPrompt, mergeResearch, parseManualResponse, researchPrompt, researchSchema, type ResearchOutput } from "./research";
 import {
@@ -15,12 +16,17 @@ import {
 } from "./settings";
 import type { Answer, Details, Factor, Reference, Section } from "./types";
 import {
+  answerChip,
   cisaResult,
+  decisionProgress,
+  DECISION_KEYS,
   DECISION_MEANING,
   missionWellBeing,
   normalizeCveId,
   prefillFromCisa,
   summarizeCve,
+  timelineProgress,
+  TIMELINE_KEYS,
   timelineResult,
   TIMELINE_MEANING,
   triageText,
@@ -92,6 +98,7 @@ const S = {
   /** "Other AI" copy & paste panel */
   manual: { open: false, paste: "" },
   claude: null as ClaudeStatus | null,
+  update: { kind: "checking" } as UpdateState,
   graphAccount: null as string | null,
   device: null as DeviceCode | null,
   submitting: false,
@@ -178,7 +185,6 @@ function render() {
     </header>
     <nav id="nav"></nav>
     <main><div class="page" id="page"></div></main>
-    <button class="app-version" data-url="https://github.com/zaclohrenz/AssessIT/releases/tag/v${APP_VERSION}" title="Release notes for v${APP_VERSION} on GitHub">v${APP_VERSION}</button>
   </div>`;
   renderNav();
   renderPage();
@@ -208,7 +214,30 @@ function renderNav() {
     item("settings", "Settings", st.settings) +
     `<div class="navsep">Tools</div>` +
     item("vuln", "Vulnerability triage", vulnBubble()) +
-    `<div class="spacer"></div><div class="foot">${esc(policy().name)} v${policy().version}<br>${esc(configLabel())}</div>`;
+    `<div class="spacer"></div><div class="foot">${esc(policy().name)} v${policy().version}<br>${esc(configLabel())}
+      <div class="verrow"><button class="verlink" data-url="${releaseUrl(APP_VERSION)}" title="Release notes for v${APP_VERSION} on GitHub">v${APP_VERSION} ↗</button>${updateBadge()}</div></div>`;
+}
+
+/** The dot next to the version: green = latest, yellow = newer release exists, grey = couldn't check. */
+function updateBadge(): string {
+  const u = S.update;
+  if (u.kind === "available")
+    return `<button class="upd warn" data-url="${releaseUrl(u.latest)}" title="Open the release page. With Homebrew: brew upgrade --cask assessit"><span class="udot"></span>${esc(u.latest.replace(/^v/, "v"))} available</button>`;
+  if (u.kind === "latest") return `<button class="upd ok" data-action="check-update" title="You're on the latest release. Click to check again."><span class="udot"></span>Latest</button>`;
+  if (u.kind === "checking") return `<span class="upd"><span class="udot"></span>Checking…</span>`;
+  return `<button class="upd" data-action="check-update" title="${esc(u.message)}. Click to try again."><span class="udot"></span>Can't check</button>`;
+}
+
+async function checkForUpdate() {
+  S.update = { kind: "checking" };
+  renderNav();
+  try {
+    const tag = await invoke<string>("latest_release");
+    S.update = isNewer(tag, APP_VERSION) ? { kind: "available", latest: tag.replace(/^v/, "") } : { kind: "latest" };
+  } catch (e) {
+    S.update = { kind: "error", message: errText(e) };
+  }
+  renderNav();
 }
 
 function refreshHeader() {
@@ -418,7 +447,8 @@ function questionsPage(): string {
   const aiCount = unreviewedAi();
   const sections = SECTIONS
     .map((sec) => {
-      const fs = p.factors.filter((f) => f.section === sec && f.enabled && visible(f));
+      // Ignorable (pure value-choice) questions go last in their section so they read as a group.
+      const fs = p.factors.filter((f) => f.section === sec && f.enabled && visible(f)).sort((x, y) => Number(!!x.ignorable) - Number(!!y.ignorable));
       if (!fs.length) return "";
       return `<div class="card" id="sec-${sec}"><div class="section-head"><h2>${sec === "Preference" ? "Organization preferences" : sec}</h2><span class="muted" id="sec-total-${sec}">${sectionTotal(sec)}</span></div>
         <p class="muted" style="margin:-6px 0 6px">${SECTION_BLURB[sec]}</p>
@@ -459,7 +489,7 @@ function qRow(f: Factor): string {
     <div><span class="text">${esc(f.question)}</span><span id="badges-${f.id}"><span class="badge edited">Ignored</span></span>
       <div class="guide">Not scored, not required. Your report will say you ignored it.</div>
       ${whyItMatters(f)}</div>
-    <div class="body"><div class="opts"><button class="btn small" data-ignore="${f.id}" data-val="">Include it again</button></div></div></div>`;
+    <div class="body"><div class="opts"><button class="opt on" data-ignore="${f.id}" data-val="" title="Score this question again">Ignored · include it again</button></div></div></div>`;
   const opts = f.options
     .map((o) => `<button class="opt ${resp === o.label ? "on" : ""}" data-opt="${f.id}" data-val="${esc(o.label)}" title="${esc(fmtPts(o.points, f.section))}">${esc(o.label)}</button>`)
     .join("");
@@ -470,7 +500,7 @@ function qRow(f: Factor): string {
       ${basisChips(f) ? `<div class="refs">${basisChips(f)}</div>` : ""}
       ${whyItMatters(f)}</div>
     <div class="body">
-      <div class="opts">${opts}${resp ? `<button class="btn small" data-opt="${f.id}" data-val="">Clear</button>` : ""}${f.ignorable ? `<button class="btn small ghost" data-ignore="${f.id}" data-val="1" title="Skip this question. It won't be scored or required.">Ignore</button>` : ""}</div>
+      <div class="opts">${opts}${f.ignorable ? `<button class="opt" data-ignore="${f.id}" data-val="1" title="Skip this question. It won't be scored or required.">Ignore</button>` : ""}${resp ? `<button class="btn small" data-opt="${f.id}" data-val="">Clear</button>` : ""}</div>
       <div class="ev">
         <textarea placeholder="Notes / evidence" data-ans="${f.id}" data-field="notes">${esc(ans?.notes ?? "")}</textarea>
         <textarea placeholder="Source URL(s)" data-ans="${f.id}" data-field="sources">${esc(ans?.sources ?? "")}</textarea>
@@ -834,7 +864,8 @@ function refreshConfigViews() {
 // ---------------- Vulnerability triage (SSVC) ----------------
 
 function vulnBubble(): Bubble {
-  const d = cisaResult(S.vuln.answers);
+  // Settled counts even before every question is answered: "Act" is already "Act".
+  const d = decisionProgress(S.vuln.answers).settled;
   if (d === "Act") return ["hot", "ACT"];
   if (d === "Attend") return ["warm", "ATTEND"];
   if (d) return ["opt", d.toUpperCase()];
@@ -846,7 +877,7 @@ const SOURCE_LABEL: Record<AnswerSource, string> = { cisa: "CISA SSVC analysis",
 
 function vulnPage(): string {
   return `
-    <div><h1>Vulnerability triage</h1><p class="lede">Look up a CVE. AssessIT pulls CISA's KEV catalog and CISA's own SSVC analysis, then asks only what your organization knows. You get CISA's SSVC decision and the BOD 26-04 remediation deadline.</p></div>
+    <div><h1>Vulnerability triage</h1><p class="lede">Look up a CVE. AssessIT pulls CISA's KEV catalog and CISA's own SSVC analysis, then asks only what your organization knows. You get CISA's SSVC decision and a suggested remediation timeline based on CISA's BOD 26-04.</p></div>
     <div class="card" id="vuln-lookup">${vulnLookupCard()}</div>
     <div id="vuln-body">${vulnBody()}</div>`;
 }
@@ -885,12 +916,24 @@ function vulnBody(): string {
         <div class="refs" style="margin-top:8px"><button class="ref" data-url="https://www.cve.org/CVERecord?id=${esc(V.cve.id)}">CVE record</button><button class="ref" data-url="https://nvd.nist.gov/vuln/detail/${esc(V.cve.id)}">NVD</button>${V.kev ? `<button class="ref" data-url="https://www.cisa.gov/known-exploited-vulnerabilities-catalog?field_cve=${esc(V.cve.id)}">KEV entry</button>` : ""}</div></div>`
     : "";
 
-  const decisionCard = d
-    ? `<div class="banner ${DECISION_MEANING[d].tone}"><div class="k">CISA SSVC decision</div><div class="d">${esc(d.toUpperCase())}</div><div style="font-weight:600">${esc(DECISION_MEANING[d].summary)}</div><div style="margin-top:6px">${esc(DECISION_MEANING[d].detail)}</div>${vulnPath()}</div>`
-    : `<div class="banner muted"><div class="k">CISA SSVC decision</div><div class="d">—</div><div>Still needed: ${esc(missing("decision").join(", "))}</div></div>`;
-  const timelineCard = tl
-    ? `<div class="banner ${TIMELINE_MEANING[tl].tone}"><div class="k">BOD 26-04 remediation deadline</div><div class="d">${esc(TIMELINE_MEANING[tl].label.toUpperCase())}</div><div style="margin-top:6px">${esc(TIMELINE_MEANING[tl].detail)}</div><div style="margin-top:6px;opacity:.85;font-size:12px">Binding on U.S. federal civilian agencies; CISA encourages everyone to follow it.</div></div>`
-    : `<div class="banner muted"><div class="k">BOD 26-04 remediation deadline</div><div class="d">—</div><div>Still needed: ${esc(missing("timeline").join(", "))}</div></div>`;
+  const decisionCard = resultBanner({
+    title: "CISA SSVC decision",
+    done: d,
+    progress: decisionProgress(x),
+    keys: DECISION_KEYS,
+    meaning: (r) => ({ label: r, summary: DECISION_MEANING[r].summary, detail: DECISION_MEANING[r].detail, tone: DECISION_MEANING[r].tone }),
+    pathHtml: vulnPath(),
+    missing: missing("decision"),
+  });
+  const timelineCard = resultBanner({
+    title: "Suggested timeline · based on BOD 26-04",
+    done: tl,
+    progress: timelineProgress(x),
+    keys: TIMELINE_KEYS,
+    meaning: (r) => ({ label: TIMELINE_MEANING[r].label, summary: "", detail: TIMELINE_MEANING[r].detail, tone: TIMELINE_MEANING[r].tone }),
+    footer: `<div style="margin-top:8px;font-size:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="opacity:.85">Based on CISA's patching schedule for U.S. federal civilian agencies. It doesn't bind private organizations, but it's a useful benchmark for how fast to fix. The clock starts when CISA adds it to KEV or you find it on an asset, and it shortens or lengthens as facts change (for example, taking it off the internet).</span><button class="ref" data-url="${BOD_URL}">BOD 26-04 patching schedule (Appendix A, Table 1) ↗</button></div>`,
+    missing: missing("timeline"),
+  });
 
   const group = (from: "cisa" | "org", title: string, blurb: string) =>
     `<div class="card"><div class="section-head"><h2>${title}</h2></div><p class="muted" style="margin-top:0">${blurb}</p>${VULN_QUESTIONS.filter((q) => q.from === from)
@@ -904,6 +947,42 @@ function vulnBody(): string {
     <div class="row"><button class="btn" data-action="vuln-copy">Copy summary</button>
       <span class="muted">Sources: <button class="ref" data-url="https://www.cisa.gov/stakeholder-specific-vulnerability-categorization-ssvc">CISA SSVC</button>
       <button class="ref" data-url="https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk">BOD 26-04</button></span></div>`;
+}
+
+const BOD_URL = "https://www.cisa.gov/news-events/directives/bod-26-04-prioritizing-security-updates-based-risk";
+
+type Tone = "ok" | "info" | "warn" | "bad";
+
+/**
+ * One result card that updates as answers come in. Finished: the result. Not finished but settled: the result
+ * plus the answers that already force it. Otherwise: what's still possible and what's still needed.
+ */
+function resultBanner<R extends string>(o: {
+  title: string;
+  done: R | null;
+  progress: { possible: R[]; settled: R | null; decidedBy: VulnKey[] };
+  keys: VulnKey[];
+  meaning: (r: R) => { label: string; summary: string; detail: string; tone: Tone };
+  pathHtml?: string;
+  footer?: string;
+  missing: string[];
+}): string {
+  const x = S.vuln.answers;
+  const foot = o.footer ?? "";
+  if (o.done) {
+    const m = o.meaning(o.done);
+    return `<div class="banner ${m.tone}"><div class="k">${esc(o.title)}</div><div class="d">${esc(m.label.toUpperCase())}</div>${m.summary ? `<div style="font-weight:600">${esc(m.summary)}</div>` : ""}<div style="margin-top:6px">${esc(m.detail)}</div>${o.pathHtml ?? ""}${foot}</div>`;
+  }
+  const { settled, possible, decidedBy } = o.progress;
+  if (settled) {
+    const m = o.meaning(settled);
+    const chips = decidedBy.map((k) => `<span class="step">${esc(answerChip(x, k))}</span>`).join("");
+    return `<div class="banner ${m.tone}"><div class="k">${esc(o.title)} · already settled</div><div class="d">${esc(m.label.toUpperCase())}</div>${m.summary ? `<div style="font-weight:600">${esc(m.summary)}</div>` : ""}<div style="margin-top:6px">${esc(m.detail)}</div>
+      <div style="margin-top:8px;font-size:12.5px">Whatever you answer for ${esc(o.missing.join(", "))}, it lands here. Decided by:</div><div class="path" style="margin-top:4px">${chips}</div>${foot}</div>`;
+  }
+  const answered = o.keys.some((k) => x[k]);
+  const range = possible.map((r) => o.meaning(r).label).join(" · ");
+  return `<div class="banner muted"><div class="k">${esc(o.title)}</div><div class="d">—</div>${answered ? `<div>Still possible: ${esc(range)}</div>` : ""}<div style="margin-top:4px">Still needed: ${esc(o.missing.join(", "))}</div>${foot}</div>`;
 }
 
 /** The branch taken through CISA's tree, e.g. "Active → Automatable → Total → High → Act". */
@@ -1157,6 +1236,7 @@ async function graphSignIn() {
 // ---------------- Events ----------------
 
 const actions: Record<string, () => unknown> = {
+  "check-update": () => checkForUpdate(),
   new: newAssessment,
   open: openFile,
   save: saveFile,
@@ -1398,6 +1478,7 @@ document.addEventListener("change", (e) => {
 
 render();
 checkClaude();
+checkForUpdate();
 loadRemoteConfig();
 invoke<string | null>("graph_status").then((who) => {
   S.graphAccount = who;
