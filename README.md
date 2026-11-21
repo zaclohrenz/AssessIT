@@ -172,11 +172,11 @@ Releases are automated with [release-please](https://github.com/googleapis/relea
 
 1. **Merge PRs with [Conventional Commit](https://www.conventionalcommits.org/) titles:** `fix: …` (patch), `feat: …` (minor), `feat!: …` (major). A check on every PR enforces this.
 2. **release-please keeps a "Release PR" open.** It collects every change since the last release into `CHANGELOG.md` and bumps the version in `package.json`, `tauri.conf.json` and `Cargo.toml`. It updates itself as more PRs merge.
-3. **Merge the Release PR when you want to ship.** That creates a draft GitHub release with those notes. The workflow then builds and attaches:
+3. **Merge the Release PR when you want to ship.** That creates a draft GitHub release with those notes and tags `vX.Y.Z`. The workflow then builds and attaches:
    - the universal macOS zip and the Windows installer;
    - the public default config and policy.
 
-   Once everything is attached, it publishes the release, which creates the `vX.Y.Z` tag, and commits an updated `Casks/assessit.rb` (new version and checksum) to `main`. The repo uses GitHub's immutable releases, so a published release can't be changed; if a build fails, the release stays a draft until you re-run the failed job.
+   Once everything is attached, it publishes the release and commits an updated `Casks/assessit.rb` (new version and checksum) to `main`. The repo uses GitHub's immutable releases, so a published release can't be changed; if a build fails, the release stays a draft until you re-run the failed job.
 4. **Homebrew users get it on their next `brew upgrade`**, since Homebrew refreshes taps automatically. Organizations can schedule this with `brew autoupdate` or their MDM.
 
 ## Development

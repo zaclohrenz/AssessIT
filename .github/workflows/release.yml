@@ -3,8 +3,8 @@ name: Release
 # How releases happen (see README → "Releasing"):
 #   1. PRs are merged into main with Conventional Commit titles (feat:, fix:, …).
 #   2. release-please keeps a "chore(main): release x.y.z" PR open with the changelog and version bump.
-#   3. Merging that PR makes a *draft* release. The jobs below build the Mac and Windows apps and
-#      attach them, then publish it (which creates the vX.Y.Z tag) and point the Homebrew cask at it.
+#   3. Merging that PR makes a *draft* release and its vX.Y.Z tag. The jobs below build the Mac and
+#      Windows apps and attach them, then publish it and point the Homebrew cask at it.
 #
 # Why a draft: the repo uses GitHub's immutable releases, so nothing can be attached after a release
 # is published. If a build fails, the release stays a draft; re-run the failed job to finish it.
@@ -25,11 +25,25 @@ jobs:
       version: ${{ steps.rp.outputs.version }}
       sha: ${{ steps.rp.outputs.sha }}
     steps:
+      # 1. Turn a merged release PR into a draft release (no release PRs yet).
       - id: rp
         uses: googleapis/release-please-action@v5
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          skip-github-pull-request: true
+      # 2. Drafts get no git tag until published, and release-please finds the last release by its tag.
+      #    Without this, step 3 can't see the release it just made and opens a release PR for it again.
+      - if: steps.rp.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api "repos/${{ github.repository }}/git/refs" -f ref="refs/tags/${{ steps.rp.outputs.tag_name }}" -f sha="${{ steps.rp.outputs.sha }}"
+      # 3. Open or update the release PR for whatever comes next.
+      - uses: googleapis/release-please-action@v5
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          skip-github-release: true
 
   macos:
     needs: release-please
