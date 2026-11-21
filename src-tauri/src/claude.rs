@@ -41,7 +41,8 @@ fn shell_path() -> &'static str {
         if cfg!(windows) {
             return base;
         }
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+        let default_shell = if cfg!(target_os = "macos") { "/bin/zsh" } else { "/bin/sh" };
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| default_shell.into());
         let child = std::process::Command::new(shell)
             .args(["-ilc", "printf '__P__%s__P__' \"$PATH\""])
             .stdin(Stdio::null())
@@ -89,7 +90,9 @@ pub fn locate() -> Option<PathBuf> {
         }
     } else {
         candidates.extend(
-            ["/opt/homebrew/bin/claude", "/usr/local/bin/claude"].iter().map(PathBuf::from),
+            ["/opt/homebrew/bin/claude", "/usr/local/bin/claude", "/home/linuxbrew/.linuxbrew/bin/claude", "/usr/bin/claude"]
+                .iter()
+                .map(PathBuf::from),
         );
         candidates.push(h.join(".npm-global/bin/claude"));
         candidates.push(h.join(".bun/bin/claude"));
@@ -309,10 +312,60 @@ pub fn open_claude_setup() -> Result<(), String> {
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        let _ = login;
-        return Err("Open a terminal and run: claude auth login".into());
+        let script = std::env::temp_dir().join("assessit-claude-setup.sh");
+        let body = format!(
+            "#!/bin/sh\necho 'Setting up Claude Code for AssessIT...'\n{login}\necho\necho 'Done. Return to AssessIT and click \"Check again\". Press Enter to close this window.'\nread _\n"
+        );
+        std::fs::write(&script, body).map_err(|e| e.to_string())?;
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).map_err(|e| e.to_string())?;
+        open_linux_terminal(&script)?;
     }
     Ok(())
+}
+
+/// Terminal emulators to try, in order, with the flag that makes each one run a program.
+#[cfg(all(unix, not(target_os = "macos")))]
+const LINUX_TERMINALS: &[(&str, &[&str])] = &[
+    ("x-terminal-emulator", &["-e"]),
+    ("gnome-terminal", &["--"]),
+    ("konsole", &["-e"]),
+    ("xfce4-terminal", &["-x"]),
+    ("kitty", &[]),
+    ("alacritty", &["-e"]),
+    ("wezterm", &["start", "--"]),
+    ("foot", &[]),
+    ("tilix", &["-e"]),
+    ("terminator", &["-x"]),
+    ("xterm", &["-e"]),
+];
+
+/// Opens `script` in the user's terminal: `$TERMINAL` first, then whichever known emulator is installed.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn open_linux_terminal(script: &Path) -> Result<(), String> {
+    let find = |name: &str| -> Option<PathBuf> {
+        shell_path().split(':').filter(|d| !d.is_empty()).map(|d| Path::new(d).join(name)).find(|p| p.is_file())
+    };
+    let mut tried: Vec<(PathBuf, Vec<&str>)> = Vec::new();
+    if let Some(t) = std::env::var("TERMINAL").ok().filter(|t| !t.trim().is_empty()) {
+        let path = PathBuf::from(t.trim());
+        let path = if path.is_absolute() { Some(path) } else { find(t.trim()) };
+        if let Some(p) = path {
+            let flags = LINUX_TERMINALS
+                .iter()
+                .find(|(n, _)| p.file_name().is_some_and(|f| f == *n))
+                .map(|(_, f)| f.to_vec())
+                .unwrap_or_else(|| vec!["-e"]);
+            tried.push((p, flags));
+        }
+    }
+    tried.extend(LINUX_TERMINALS.iter().filter_map(|(n, f)| find(n).map(|p| (p, f.to_vec()))));
+    for (term, flags) in tried {
+        if std::process::Command::new(&term).args(flags).arg(script).env("PATH", shell_path()).spawn().is_ok() {
+            return Ok(());
+        }
+    }
+    Err(format!("Couldn't find a terminal to open. Open one and run: sh {}", script.display()))
 }
 
 #[tauri::command]
