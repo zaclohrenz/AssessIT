@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import {
   cisaDecision,
   cisaResult,
+  decisionProgress,
+  timelineProgress,
   missionWellBeing,
   normalizeCveId,
   prefillFromCisa,
@@ -109,5 +111,40 @@ describe("pre-filling from CISA data", () => {
     expect(normalizeCveId(" cve-2024-3400 ")).toBe("CVE-2024-3400");
     expect(normalizeCveId("CVE-2026-129448")).toBe("CVE-2026-129448");
     expect(normalizeCveId("2024-3400")).toBeNull();
+  });
+});
+
+describe("partial answers", () => {
+  it("nothing answered: every result is still possible", () => {
+    const p = decisionProgress({});
+    expect(p.possible).toEqual(["Track", "Track*", "Attend", "Act"]);
+    expect(p.settled).toBeNull();
+  });
+
+  it("active exploitation alone rules out Track*", () => {
+    expect(decisionProgress({ exploitation: "active" }).possible).toEqual(["Track", "Attend", "Act"]);
+  });
+
+  it("settles early and names the answers that force the result", () => {
+    // None + not automatable + partial impact is Track for every mission and well-being answer.
+    const p = decisionProgress({ exploitation: "none", automatable: "no", technicalImpact: "partial" });
+    expect(p.settled).toBe("Track");
+    expect(p.decidedBy.sort()).toEqual(["automatable", "exploitation", "technicalImpact"]);
+  });
+
+  it("leaves out answers that don't matter", () => {
+    const p = decisionProgress({ exploitation: "none", automatable: "no", technicalImpact: "partial", missionPrevalence: "essential" });
+    expect(p.decidedBy).not.toContain("missionPrevalence");
+  });
+
+  it("timeline: KEV + total impact + exposed is 3 days + forensic triage whatever automatable is", () => {
+    const p = timelineProgress({ inKev: "yes", technicalImpact: "total", publiclyExposed: "yes" });
+    expect(p.settled).toBe("3d+forensic");
+    expect(p.decidedBy.sort()).toEqual(["inKev", "publiclyExposed", "technicalImpact"]);
+  });
+
+  it("agrees with the full tables once everything is answered", () => {
+    const x = { exploitation: "active", automatable: "yes", technicalImpact: "total", missionPrevalence: "support", wellBeing: "minimal" } as const;
+    expect(decisionProgress(x).settled).toBe(cisaResult(x));
   });
 });

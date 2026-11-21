@@ -2,6 +2,7 @@ mod claude;
 mod config;
 mod export;
 mod submit;
+mod update;
 mod vuln;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -30,6 +31,7 @@ pub fn run() {
             config::fetch_config,
             vuln::cve_record,
             vuln::kev_lookup,
+            update::latest_release,
         ])
         .run(tauri::generate_context!())
         .expect("error while running AssessIT");

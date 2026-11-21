@@ -228,9 +228,16 @@ nav .navsep { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em
 .meanings { margin: 2px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--muted); }
 .meanings li { margin: 2px 0; }
 
-/* Version, bottom right. Links to that release on GitHub. */
-.app-version { position: fixed; right: 12px; bottom: 8px; font-size: 11px; color: var(--muted); background: none; border: 0; padding: 2px 4px; cursor: pointer; border-radius: 4px; }
-.app-version:hover { color: var(--accent); text-decoration: underline; }
+/* Version and update status, bottom left of the nav. */
+nav .verrow { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+nav .verlink { font-size: 12px; font-weight: 600; color: var(--accent); background: var(--panel); border: 1px solid var(--accent); border-radius: 999px; padding: 2px 10px; cursor: pointer; }
+nav .verlink:hover { background: var(--accent); color: var(--panel); }
+nav .upd { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); background: none; border: 0; padding: 2px 4px; border-radius: 6px; }
+nav button.upd { cursor: pointer; }
+nav button.upd:hover { background: var(--muted-bg); }
+.upd .udot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+.upd.ok { color: var(--ok); } .upd.ok .udot { background: var(--go); }
+.upd.warn { color: var(--warn); background: var(--warn-bg); padding: 2px 8px; } .upd.warn .udot { background: #e0a800; }
 
 /* "Why it matters" under each question. */
 .why { margin-top: 6px; font-size: 12.5px; }
@@ -239,5 +246,3 @@ nav .navsep { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em
 
 /* Questions the assessor chose to ignore, and the quiet "Ignore" button. */
 .q.ignored .text { color: var(--muted); }
-.btn.ghost { border-style: dashed; color: var(--muted); font-weight: 500; }
-.opts .btn.ghost { margin-left: auto; }
