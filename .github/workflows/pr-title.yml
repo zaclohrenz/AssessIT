@@ -1,7 +1,7 @@
 name: PR title
 
-# Release notes and version numbers are built from PR titles, so they must follow
-# Conventional Commits: "feat: …", "fix(scoring): …", "docs: …". See CONTRIBUTING.md.
+# Release notes list PR titles, so keep them consistent with Conventional Commits:
+# "feat: …", "fix(scoring): …", "docs: …". See CONTRIBUTING.md.
 on:
   pull_request:
     types: [opened, edited, synchronize, reopened]
