@@ -7,10 +7,11 @@ on:
 
 jobs:
   test:
+    name: macOS
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -24,10 +25,11 @@ jobs:
       - run: cargo test --manifest-path src-tauri/Cargo.toml
 
   windows:
+    name: Windows
     # Catches Windows-only Rust (registry lookups, process flags) before release day.
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - run: New-Item -ItemType Directory -Force dist; Set-Content dist/index.html "<!doctype html>"
       - run: cargo check --manifest-path src-tauri/Cargo.toml
