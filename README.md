@@ -179,13 +179,13 @@ The workflow:
 3. if you've required approval, waits for it (the builds can be downloaded from the run while it waits);
 4. publishes in one step:
    - the `vX.Y.Z` tag and the GitHub release, with the apps, the public default config and policy attached, and notes listing the PRs merged since the last release;
-   - a commit on `main` with the new version and an updated `Casks/assessit.rb`.
+   - a pull request, merged automatically, that updates the version on `main` and `Casks/assessit.rb`.
 
 **If any step fails, nothing has changed:** no tag, no release, no commit. Fix the problem and run it again. Don't merge into `main` while a release is building; the workflow stops rather than release something it didn't test.
 
 **One-time setup:**
 - To approve each release by hand, add yourself under **Settings → Environments → release → Required reviewers**. The environment appears after the first run, or create it yourself.
-- If you protect `main`, let GitHub Actions bypass the protection, because the release pushes its version commit there.
+- Under **Settings → Actions → General**, tick **Allow GitHub Actions to create and approve pull requests**, so the release can open its version PR. If your `main` rules require an approving review, the release run stops with a link to that PR; approve and merge it to finish.
 
 The repo uses GitHub's immutable releases: once published, a release can't change, and its tag name can never be reused, even if the release is deleted. Homebrew users get each release on their next `brew upgrade`.
 
