@@ -7,6 +7,7 @@ on:
 
 jobs:
   test:
+    name: macOS
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
@@ -24,6 +25,7 @@ jobs:
       - run: cargo test --manifest-path src-tauri/Cargo.toml
 
   windows:
+    name: Windows
     # Catches Windows-only Rust (registry lookups, process flags) before release day.
     runs-on: windows-latest
     steps:
