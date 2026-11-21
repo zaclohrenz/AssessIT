@@ -17,6 +17,17 @@ describe("default policy governance", () => {
     expect(f.justification, "every weight needs a written reason").toBeTruthy();
   });
 
+  it("only value choices are ignorable, and each says why", () => {
+    for (const f of policy.factors.filter((x) => x.ignorable)) {
+      expect(f.basis, f.id).toBe("preference");
+      expect(f.ignoreNote, `${f.id} needs an explanation`).toBeTruthy();
+    }
+  });
+
+  it("every preference question links to related guidance where any exists", () => {
+    for (const f of policy.factors.filter((x) => x.section === "Preference")) expect(f.references.length, f.id).toBeGreaterThan(0);
+  });
+
   it("every Organization-preference factor is labeled as a preference", () => {
     for (const f of policy.factors.filter((x) => x.section === "Preference")) expect(f.basis).toBe("preference");
   });

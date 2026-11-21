@@ -1,6 +1,6 @@
 {
   "name": "AssessIT default policy",
-  "version": 2,
+  "version": 3,
   "sources": {
     "formula": {
       "source": "NIST SP 800-30 Rev. 1",
@@ -69,7 +69,7 @@
       "id": "L1",
       "section": "Likelihood",
       "factor": "No security certification",
-      "question": "Does the vendor lack a recognized security framework or third-party certification (e.g., SOC 2 Type II, ISO 27001)?",
+      "question": "Does the vendor lack an independent security audit or certification, such as SOC 2 Type II, ISO 27001, or one that fits our data (HIPAA, PCI DSS, FedRAMP, HITRUST)?",
       "options": [
         {
           "label": "Yes",
@@ -84,8 +84,8 @@
       "required": true,
       "hardStop": null,
       "research": "public",
-      "justification": "An independent audit is the cheapest proof that baseline controls exist and are tested. Weighted 1 (not 2) because a certificate shows controls exist, not that they stop breaches.",
-      "guidance": "Check the vendor trust center. Ask for the SOC 2 Type II report (not just a logo).",
+      "justification": "An independent audit (SOC 2 Type II, ISO 27001) is the cheapest evidence that a vendor's baseline controls exist and were tested over time, which is why NIST CSF asks you to assess suppliers before you buy. It gets 1 point, not 2, because a certificate shows controls exist, not that they stop breaches. A Type II report matters more than a logo: it covers how controls performed over months, not a single day.",
+      "guidance": "Look on the vendor's trust center, and ask for the actual SOC 2 Type II report, not just a logo. A compliance framework that matches your data (HIPAA, PCI DSS, FedRAMP) also counts: each means a base level of controls exists and someone checks them.",
       "basis": "standard",
       "references": [
         {
@@ -110,8 +110,8 @@
     {
       "id": "L2",
       "section": "Likelihood",
-      "factor": "Breach in last 3 years",
-      "question": "Has the vendor had a data breach in the last three years?",
+      "factor": "Breach in the last 3 years",
+      "question": "Has the vendor had a data breach or serious security incident in the last 3 years?",
       "options": [
         {
           "label": "Yes",
@@ -126,8 +126,8 @@
       "required": true,
       "hardStop": null,
       "research": "public",
-      "justification": "Past breaches are the strongest single predictor available of future incidents, so this carries double weight.",
-      "guidance": "Search vendor name + breach/incident/disclosure. Note whether the incident was the vendor or its parent.",
+      "justification": "A vendor that has already lost data once has shown how its controls fail and how it behaves under pressure: how fast it notified customers, how honest it was, what it fixed. Past breaches are the strongest single predictor available of future incidents, so this carries double weight. Note whether it was the vendor or a parent company, since the parent's practices can apply to you.",
+      "guidance": "Search the vendor's name with \"breach\", \"incident\" and \"disclosure\". Note whether it hit the vendor itself or its parent company. How they handled it is the next question.",
       "basis": "standard",
       "references": [
         {
@@ -147,8 +147,8 @@
     {
       "id": "L3",
       "section": "Likelihood",
-      "factor": "Negative privacy record",
-      "question": "Has the vendor been in the news or in court for negative or questionable privacy practices in the last three years?",
+      "factor": "Privacy trouble",
+      "question": "Has the vendor been sued, fined, or reported on for questionable privacy practices in the last 3 years?",
       "options": [
         {
           "label": "Yes",
@@ -163,8 +163,8 @@
       "required": true,
       "hardStop": null,
       "research": "public",
-      "justification": "Regulatory actions and lawsuits show how a vendor treats data when no one is watching. Double weight, same as breaches.",
-      "guidance": "Search regulator sites (FTC, state AGs, EU DPAs) and major news. Cite the source.",
+      "justification": "Regulatory actions, fines and lawsuits show how a vendor treats data when no one is watching. A pattern of privacy enforcement means the vendor's stated practices and real practices have diverged before, and may again. Double weight, same as breaches.",
+      "guidance": "Search regulator sites (FTC, state attorneys general, EU data-protection authorities) and major news. Write down where you found it.",
       "basis": "standard",
       "references": [
         {
@@ -184,8 +184,8 @@
     {
       "id": "L4",
       "section": "Likelihood",
-      "factor": "Small / early-stage vendor",
-      "question": "Is the vendor small and early-stage (fewer than 200 staff AND in operation fewer than 5 years)?",
+      "factor": "Small or young vendor",
+      "question": "Is the vendor small and new: fewer than 200 employees and in business fewer than 5 years?",
       "options": [
         {
           "label": "Yes",
@@ -200,8 +200,8 @@
       "required": true,
       "hardStop": null,
       "research": "public",
-      "justification": "Young, small vendors often lack a dedicated security team and are more likely to fold or be acquired. Single weight: size alone is not a flaw. NIST asks for supplier due diligence (GV.SC-06) but doesn't say small or young vendors are riskier. This weighting is an organization preference carried over from the original template.",
-      "guidance": "LinkedIn headcount and founding date are usually enough.",
+      "justification": "Young, small vendors often lack a dedicated security team, and are more likely to fold, pivot or be acquired, which can change who holds your data. It carries a single point because size alone is not a flaw. NIST asks for supplier due diligence (GV.SC-06) but doesn't say small vendors are riskier, so this weighting is an organizational preference carried over from the original template.",
+      "guidance": "LinkedIn headcount and the founding date are usually enough.",
       "basis": "preference",
       "references": [
         {
@@ -210,13 +210,15 @@
           "title": "Planning and due diligence are performed to reduce risks before entering into supplier relationships",
           "url": "https://doi.org/10.6028/NIST.CSWP.29"
         }
-      ]
+      ],
+      "ignorable": true,
+      "ignoreNote": "Company size isn't a security flaw, and no standard says small or young vendors are riskier; the weighting came from the original template. If your organization is comfortable buying from startups, ignore it."
     },
     {
       "id": "L5",
       "section": "Likelihood",
       "factor": "AI model not disclosed",
-      "question": "Does the vendor fail to disclose which AI model(s) power the product, who trained them, or what data was used?",
+      "question": "Does the vendor refuse to say which AI model(s) power the product, who trained them, or what data they were trained on?",
       "options": [
         {
           "label": "Yes",
@@ -231,8 +233,8 @@
       "required": true,
       "hardStop": null,
       "research": "public",
-      "justification": "If you cannot name the model you cannot assess where data goes or how outputs behave. Double weight for AI tools.",
-      "guidance": "Answer 'No' for non-AI software.",
+      "justification": "If you can't name the model behind an AI feature, you can't assess where your data goes, whether it trains the model, or how outputs behave. Undisclosed models also hide dependence on a third-party AI provider that never appears in your contract. Double weight for AI tools; answer No for non-AI software.",
+      "guidance": "Answer No for software that has no AI features.",
       "basis": "standard",
       "references": [
         {
@@ -252,8 +254,8 @@
     {
       "id": "L6",
       "section": "Likelihood",
-      "factor": "Bypasses IT / Legal purchasing",
-      "question": "Is this purchased outside of IT and Legal review (e.g., purchasing card, expensed, or free self-sign-up)?",
+      "factor": "Bought outside IT and Legal review",
+      "question": "Is this being bought outside of IT and Legal review, for example on a company card, expensed, or through a free self-signup?",
       "options": [
         {
           "label": "Yes",
@@ -268,8 +270,8 @@
       "required": true,
       "hardStop": null,
       "research": "internal",
-      "justification": "Unmanaged purchases skip contract terms (DPA, liability, deletion) that limit damage when something goes wrong.",
-      "guidance": "Confirm with Procurement / the requesting team.",
+      "justification": "Purchases that skip IT, Legal or Procurement skip the contract terms (DPA, liability, deletion, breach notice) that limit the damage when something goes wrong, and nobody is positioned to monitor the vendor afterwards. Shadow purchases are where most unreviewed data exposure starts.",
+      "guidance": "Confirm with Procurement or the team requesting it.",
       "basis": "standard",
       "references": [
         {
@@ -290,7 +292,7 @@
       "id": "L7",
       "section": "Likelihood",
       "factor": "Third-party security rating",
-      "question": "What is the vendor's third-party security rating (e.g., UpGuard, Mozilla, Netskope CCI, SecurityScorecard, BitSight), on a 0-100 scale?",
+      "question": "What security rating does an outside rating service (UpGuard, SecurityScorecard, BitSight, Mozilla Observatory, Netskope CCI) give this vendor, on a 0 to 100 scale?",
       "options": [
         {
           "label": "76-100",
@@ -317,8 +319,8 @@
       "required": true,
       "hardStop": null,
       "research": "public",
-      "justification": "Independent outside-in rating. Bands carried over from the original template. 'Not rated' scores 2: unknown is treated as below average, not as worst case. NIST asks you to monitor supplier risk (GV.SC-07). Using an outside-in rating service is one way to do that; which service is your choice.",
-      "guidance": "Pick the band. Convert letter grades: A=76-100, B=51-75, C=26-50, D/F=0-25.",
+      "justification": "An outside-in rating gives you an independent, repeatable view of a vendor's internet-facing hygiene without needing its cooperation. NIST asks you to monitor supplier risk (GV.SC-07); which rating service you use is your choice. Bands are carried over from the original template. 'Not rated' scores 2: unknown is treated as below average, not worst case.",
+      "guidance": "Pick the matching band. Convert letter grades: A = 76-100, B = 51-75, C = 26-50, D or F = 0-25. Choose Not rated if no service has scored them.",
       "basis": "standard",
       "references": [
         {
@@ -332,8 +334,8 @@
     {
       "id": "L8",
       "section": "Likelihood",
-      "factor": "Recent change of ownership",
-      "question": "Has the vendor been acquired, merged, or changed ownership in the last 12 months (or is one pending)?",
+      "factor": "Recent ownership change",
+      "question": "Has the vendor been bought, merged, or changed owners in the last 12 months, or is a deal pending?",
       "options": [
         {
           "label": "Yes",
@@ -348,8 +350,8 @@
       "required": false,
       "hardStop": null,
       "research": "public",
-      "justification": "Ownership changes often rewrite privacy terms, data-sharing and model choices after you have signed. The parent's record starts to apply.",
-      "guidance": "Check press releases and the vendor's 'about' page.",
+      "justification": "New owners often rewrite privacy terms, data-sharing and model choices after you've signed, and the acquirer's security and breach record starts to apply to your data. Contracts usually allow the vendor to assign them, so you may have no say. Worth a fresh look whenever ownership changes.",
+      "guidance": "Check press releases and the vendor's About page.",
       "basis": "standard",
       "references": [
         {
@@ -363,8 +365,8 @@
     {
       "id": "L9",
       "section": "Likelihood",
-      "factor": "Sends data to other AI providers",
-      "question": "Does the product send our data to third-party AI / model providers (fourth parties)?",
+      "factor": "Our data goes to other AI companies",
+      "question": "Does the product pass our data on to other companies' AI models or services?",
       "options": [
         {
           "label": "Yes",
@@ -383,8 +385,8 @@
       "required": false,
       "hardStop": null,
       "research": "public",
-      "justification": "Each sub-processor is another place data can leak or be retained. Unknown scores the same as Yes.",
-      "guidance": "See the vendor's sub-processor list.",
+      "justification": "Every sub-processor is another company that can leak, retain or train on your data, usually under terms you never negotiated. For AI tools this includes the model provider behind the product. Unknown scores the same as Yes because you can't assess a chain you can't see.",
+      "guidance": "Read the vendor's sub-processor list. Choose Unknown if you can't find one.",
       "basis": "standard",
       "references": [
         {
@@ -404,8 +406,8 @@
     {
       "id": "L10",
       "section": "Likelihood",
-      "factor": "Takes autonomous actions",
-      "question": "Can the software take actions on its own (run code, send messages, change records, make purchases) without a person approving each one?",
+      "factor": "Acts on its own",
+      "question": "Can the software take actions by itself, such as running code, sending messages, changing records, or making purchases, without a person approving each one?",
       "options": [
         {
           "label": "Yes",
@@ -420,8 +422,8 @@
       "required": false,
       "hardStop": null,
       "research": "public",
-      "justification": "Agentic tools turn a bad output into a bad action. Double weight.",
-      "guidance": "Answer 'No' if every action needs human approval.",
+      "justification": "Agentic tools turn a bad output into a bad action: sending email, changing records, running code. Prompt injection or a plain model mistake then has real consequences before a person can intervene. OWASP lists excessive agency as a top LLM risk. Double weight; answer No only if a person approves every action.",
+      "guidance": "Answer No only if a person has to approve every action.",
       "basis": "standard",
       "references": [
         {
@@ -441,8 +443,8 @@
     {
       "id": "L11",
       "section": "Likelihood",
-      "factor": "No SSO / MFA",
-      "question": "Does the product lack single sign-on (SAML/OIDC) with enforceable MFA?",
+      "factor": "No single sign-on or MFA",
+      "question": "Does the product lack single sign-on (SAML or OIDC) with multi-factor authentication we can require?",
       "options": [
         {
           "label": "Yes",
@@ -457,8 +459,8 @@
       "required": false,
       "hardStop": null,
       "research": "public",
-      "justification": "Without SSO, offboarding is manual and stolen passwords work.",
-      "guidance": "Check the plan tier being purchased; SSO is often enterprise-only.",
+      "justification": "Without SSO and MFA, offboarding is manual, so ex-employees keep access, and one phished or reused password is enough to get in. Many vendors reserve SSO for enterprise tiers, so check the plan you are actually buying, not the plan on the marketing page.",
+      "guidance": "Check the plan you are actually buying. SSO is often limited to enterprise tiers.",
       "basis": "standard",
       "references": [
         {
@@ -483,8 +485,8 @@
     {
       "id": "L12",
       "section": "Likelihood",
-      "factor": "Can't guarantee data deletion",
-      "question": "Is the vendor unable to commit (in writing) to deleting our data on request and at contract end?",
+      "factor": "No written deletion promise",
+      "question": "Is the vendor unwilling to commit in writing to delete our data on request and when the contract ends?",
       "options": [
         {
           "label": "Yes",
@@ -499,8 +501,8 @@
       "required": false,
       "hardStop": null,
       "research": "public",
-      "justification": "Data that is never deleted stays exposed forever.",
-      "guidance": "Look in the DPA / terms for a deletion clause and timeframe.",
+      "justification": "Data a vendor can't or won't delete stays exposed to every future breach, subpoena and acquisition, long after you stop using the product. A deletion clause with a timeframe, and ideally a certificate of destruction, is what makes offboarding a real exit.",
+      "guidance": "Look in the DPA or terms for a deletion clause with a timeframe.",
       "basis": "standard",
       "references": [
         {
@@ -517,10 +519,129 @@
       ]
     },
     {
+      "id": "L13",
+      "section": "Likelihood",
+      "factor": "Downplayed or mishandled a breach",
+      "question": "If the vendor has had a breach, did it downplay it, delay telling customers, or mislead people about it?",
+      "options": [
+        {
+          "label": "Yes",
+          "points": 2
+        },
+        {
+          "label": "No",
+          "points": 0
+        },
+        {
+          "label": "No breach on record",
+          "points": 0
+        }
+      ],
+      "enabled": true,
+      "required": true,
+      "hardStop": null,
+      "research": "public",
+      "justification": "Every company that suffers a breach learns something, and that's fine. What matters is how they behave. Vendors that delay notice, play it down, or mislead customers have shown that you would learn about the next incident late and incompletely, which is exactly when you need accurate facts. Adds 2 points on top of the breach question, so a vendor that both had a breach and covered it up scores noticeably worse than one that was open about it. Answer 'No breach on record' if there's nothing to judge.",
+      "guidance": "Compare the vendor's own statements with what regulators and journalists later found. Was notice prompt? Did the first announcement understate what was taken? Learning from a breach and being honest about it should not count against a vendor. Hiding or minimizing it should.",
+      "basis": "standard",
+      "references": [
+        {
+          "source": "NIST CSF 2.0",
+          "id": "RS.CO-02",
+          "title": "Internal and external stakeholders are notified of incidents",
+          "url": "https://doi.org/10.6028/NIST.CSWP.29"
+        },
+        {
+          "source": "NIST CSF 2.0",
+          "id": "GV.SC-07",
+          "title": "The risks posed by a supplier are understood, recorded, prioritized, assessed, responded to, and monitored",
+          "url": "https://doi.org/10.6028/NIST.CSWP.29"
+        }
+      ]
+    },
+    {
+      "id": "L14",
+      "section": "Likelihood",
+      "factor": "No deadline to tell us about incidents",
+      "question": "Does the vendor's contract lack a commitment to tell us about a security incident within a set time, such as 72 hours?",
+      "options": [
+        {
+          "label": "Yes",
+          "points": 1
+        },
+        {
+          "label": "No",
+          "points": 0
+        }
+      ],
+      "enabled": true,
+      "required": true,
+      "hardStop": null,
+      "research": "public",
+      "justification": "When something goes wrong, the clock starts for you too: you may have to notify customers, regulators or insurers within days. If the contract has no deadline for the vendor to tell you, you can learn about an incident weeks late. A commitment such as 72 hours is a common baseline. Contract terms like this are where NIST asks you to build security requirements into supplier agreements.",
+      "guidance": "Look for an incident or breach notification clause in the DPA or security addendum. Anything open-ended, like \"without undue delay\", with no number of hours or days counts as no deadline.",
+      "basis": "standard",
+      "references": [
+        {
+          "source": "NIST CSF 2.0",
+          "id": "GV.SC-05",
+          "title": "Cybersecurity supply chain requirements are established, prioritized, and integrated into contracts",
+          "url": "https://doi.org/10.6028/NIST.CSWP.29"
+        },
+        {
+          "source": "NIST CSF 2.0",
+          "id": "GV.SC-08",
+          "title": "Relevant suppliers are included in incident planning, response, and recovery activities",
+          "url": "https://doi.org/10.6028/NIST.CSWP.29"
+        }
+      ]
+    },
+    {
+      "id": "L15",
+      "section": "Likelihood",
+      "factor": "No vulnerability disclosure or fix timelines",
+      "question": "Does the vendor lack a public way to report security flaws, or a commitment to fix them within set timeframes? Also consider its track record of handling vulnerabilities.",
+      "options": [
+        {
+          "label": "Yes",
+          "points": 1
+        },
+        {
+          "label": "No",
+          "points": 0
+        }
+      ],
+      "enabled": true,
+      "required": true,
+      "hardStop": null,
+      "research": "public",
+      "justification": "Every vendor ships security flaws. What separates good vendors from risky ones is whether they take reports, fix issues on a known schedule, and tell customers. A published disclosure policy and fix timelines are signs of that. Their track record counts too: a vendor whose products keep showing up in CISA's Known Exploited Vulnerabilities list, or that took months to patch past critical flaws, is telling you how it will behave next time.",
+      "guidance": "Look for a security.txt file, a vulnerability disclosure or bug bounty page, and a security advisories page. Then check the track record: search the vendor in CISA's KEV catalog, and look at how quickly past critical flaws were patched and announced. Answer Yes if there's no policy, or if the track record is clearly poor.",
+      "basis": "standard",
+      "references": [
+        {
+          "source": "NIST CSF 2.0",
+          "id": "ID.RA-08",
+          "title": "Processes for receiving, analyzing, and responding to vulnerability disclosures are established",
+          "url": "https://doi.org/10.6028/NIST.CSWP.29"
+        },
+        {
+          "source": "CISA Secure by Demand Guide (2024)",
+          "title": "Questions buyers can ask vendors about vulnerability handling",
+          "url": "https://www.cisa.gov/news-events/news/cisa-releases-secure-demand-guide"
+        },
+        {
+          "source": "CISA Known Exploited Vulnerabilities Catalog",
+          "title": "Vulnerabilities actively exploited in the wild",
+          "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
+        }
+      ]
+    },
+    {
       "id": "I1",
       "section": "Impact",
-      "factor": "Severity if it fails",
-      "question": "If this software failed or became unavailable, would that be Catastrophic, Unacceptable, or Acceptable?",
+      "factor": "What if it failed or the vendor vanished?",
+      "question": "If this software stopped working or the vendor went out of business, how bad would that be for us?",
       "options": [
         {
           "label": "Catastrophic",
@@ -539,8 +660,8 @@
       "required": true,
       "hardStop": null,
       "research": "internal",
-      "justification": "Business-continuity view of impact. Carried over from the original template.",
-      "guidance": "Catastrophic = core operations stop. Unacceptable = major disruption with workarounds. Acceptable = easy fallback.",
+      "justification": "This is the business-continuity view of impact: if the tool fails, is breached or disappears, how badly do operations suffer? Tools with an easy fallback are low-impact however likely a failure is. Carried over from the original template.",
+      "guidance": "Catastrophic = core operations stop, or it is a single point of failure with no workable alternative. Unacceptable = major disruption, but there are workarounds. Acceptable = easy fallback, such as another tool or a manual process.",
       "basis": "standard",
       "references": [
         {
@@ -560,8 +681,8 @@
     {
       "id": "I2",
       "section": "Impact",
-      "factor": "Supports critical processes",
-      "question": "Does the software support critical teams or business processes (e.g., finance/payments, executive leadership, core operations)?",
+      "factor": "Supports critical work",
+      "question": "Does it support critical teams or business processes, such as finance and payments, executive leadership, or core operations?",
       "options": [
         {
           "label": "Yes",
@@ -576,7 +697,7 @@
       "required": true,
       "hardStop": null,
       "research": "internal",
-      "justification": "Critical processes magnify any incident. Weighted 3 (max) by design.",
+      "justification": "Critical processes magnify any incident: an outage or breach in a tool that supports revenue, safety or compliance work hurts far more than the same event in a convenience tool. Weighted 3 (the maximum) by design. Edit the examples in the question to match your own critical functions.",
       "guidance": "Edit the examples in this question to match your critical functions.",
       "basis": "standard",
       "references": [
@@ -597,8 +718,8 @@
     {
       "id": "I3",
       "section": "Impact",
-      "factor": "Data classification",
-      "question": "What is the most sensitive information the software will access?",
+      "factor": "Most sensitive data it will touch",
+      "question": "What is the most sensitive information this software will handle?",
       "options": [
         {
           "label": "Sensitive",
@@ -621,8 +742,8 @@
       "required": true,
       "hardStop": null,
       "research": "internal",
-      "justification": "Standard data-classification ladder: harm grows with sensitivity.",
-      "guidance": "Sensitive = PII, financial, health, credentials, source code with secrets. Pick the highest that applies.",
+      "justification": "The harm from a breach grows with how sensitive the data is. This is the standard classification ladder (FIPS 199 style) used for deciding how much protection data needs. Answer for the most sensitive data that will realistically enter the tool, not the typical case, since that is what a breach would expose.",
+      "guidance": "Sensitive = personal data, financial or health records, credentials, source code with secrets. Pick the highest level that will realistically go into it, not the typical case.",
       "basis": "standard",
       "references": [
         {
@@ -641,8 +762,8 @@
     {
       "id": "I4",
       "section": "Impact",
-      "factor": "Direct harm to people",
-      "question": "If that information were exposed, would it cause direct harm to the people it describes?",
+      "factor": "Could exposure hurt people?",
+      "question": "If that information leaked, could it directly harm the people it describes (identity theft, safety, financial loss)?",
       "options": [
         {
           "label": "Yes",
@@ -657,8 +778,8 @@
       "required": true,
       "hardStop": null,
       "research": "internal",
-      "justification": "Separates embarrassing exposures from ones that hurt real people (identity theft, safety, financial loss).",
-      "guidance": "",
+      "justification": "This separates exposures that are embarrassing from exposures that hurt real people: identity theft, physical safety, lost money or denied services. Harm to individuals brings legal duties, notification costs and reputational damage that no technical fix undoes.",
+      "guidance": "Think about the individuals behind the data, not the company.",
       "basis": "standard",
       "references": [
         {
@@ -671,8 +792,8 @@
     {
       "id": "I5",
       "section": "Impact",
-      "factor": "Deployment scope",
-      "question": "How widely will this be deployed?",
+      "factor": "How widely it's used",
+      "question": "How widely will it be used at our organization?",
       "options": [
         {
           "label": "Organization-wide",
@@ -691,8 +812,8 @@
       "required": false,
       "hardStop": null,
       "research": "internal",
-      "justification": "Blast radius: more users means more data and more ways in.",
-      "guidance": "",
+      "justification": "Blast radius: the more users and teams rely on a tool, the more data it holds, the more accounts can be phished, and the harder it is to switch off or replace after something goes wrong.",
+      "guidance": "Use the planned rollout, not just the pilot.",
       "basis": "standard",
       "references": [
         {
@@ -707,7 +828,7 @@
       "id": "I6",
       "section": "Impact",
       "factor": "Access to our systems",
-      "question": "What is the highest level of access it gets to our other systems?",
+      "question": "What is the most access it will have to our other systems?",
       "options": [
         {
           "label": "Admin or write access",
@@ -726,8 +847,8 @@
       "required": false,
       "hardStop": null,
       "research": "internal",
-      "justification": "Write/admin access means a compromised vendor can change our systems, not just read them.",
-      "guidance": "Look at the OAuth scopes / API permissions requested.",
+      "justification": "Read-only access means a compromised vendor can see your data; write or admin access means it can change your systems, send messages as you, or pivot into other tools. OAuth scopes and API permissions show how far a compromise could reach.",
+      "guidance": "Look at the OAuth scopes and API permissions it asks for.",
       "basis": "standard",
       "references": [
         {
@@ -742,7 +863,7 @@
       "id": "I7",
       "section": "Impact",
       "factor": "Data about vulnerable people",
-      "question": "Will it process data about minors or other vulnerable people?",
+      "question": "Will it handle data about children or other vulnerable people, such as patients or people in crisis?",
       "options": [
         {
           "label": "Yes",
@@ -757,8 +878,8 @@
       "required": false,
       "hardStop": null,
       "research": "internal",
-      "justification": "Higher legal duty of care (e.g., COPPA, GDPR Recital 38) and higher harm if exposed.",
-      "guidance": "",
+      "justification": "Data about children, patients or other vulnerable people carries a higher legal duty of care (for example COPPA, or GDPR Recital 38) and does more harm when exposed. Regulators treat these cases more severely, and people in them often can't protect themselves.",
+      "guidance": "Include data about students, patients, benefit recipients, and anyone who can't easily protect themselves.",
       "basis": "standard",
       "references": [
         {
@@ -784,7 +905,7 @@
       "id": "P1",
       "section": "Preference",
       "factor": "Harmful content",
-      "question": "Does the vendor's AI produce or enable explicit, violent, deceptive, or degrading content, or lack enforceable safeguards against such outputs?",
+      "question": "Can the vendor's AI produce explicit, violent, deceptive, or degrading content, and does the vendor lack real safeguards against it?",
       "options": [
         {
           "label": "Yes",
@@ -799,8 +920,8 @@
       "required": true,
       "hardStop": null,
       "research": "public",
-      "justification": "Values check. Adds +0.5 to the preference multiplier, so one 'Yes' raises the whole score by 50%. Multiplier rather than points because values concerns should scale the risk, not sit beside it. NIST AI 600-1 names these as generative-AI risks, but there's no NIST guidance on how much they should count against a vendor. Weighing them is an organizational values choice.",
-      "guidance": "Answer for the vendor's AI, including the parent company's models if they power this product.",
+      "justification": "A values check. A 'Yes' adds +0.5 to the preference multiplier, raising the whole score by 50%. It is a multiplier rather than points because values concerns should scale the risk, not sit beside it. NIST AI 600-1 names these as generative-AI risks, but there is no NIST guidance on how much they should count against a vendor, so weighing them is an organizational choice.",
+      "guidance": "Answer for the vendor's AI, including a parent company's models if they power this product. Choose No for software with no AI.",
       "basis": "preference",
       "references": [
         {
@@ -820,8 +941,8 @@
     {
       "id": "P2",
       "section": "Preference",
-      "factor": "Data exploitation / vulnerable people",
-      "question": "Does the vendor use personal data for AI training without meaningful consent, or lack documented protections for vulnerable populations (children, people in crisis)?",
+      "factor": "Exploiting personal data or vulnerable people",
+      "question": "Does the vendor use personal data to train AI without meaningful consent, or lack documented protections for children and people in crisis?",
       "options": [
         {
           "label": "Yes",
@@ -836,8 +957,8 @@
       "required": true,
       "hardStop": null,
       "research": "public",
-      "justification": "Values check (+0.5x). Related NIST guidance exists (AI 600-1 Data Privacy, AI RMF MAP 5.1), but how heavily to weigh it is an organizational values choice.",
-      "guidance": "",
+      "justification": "A values check (+0.5×). Using AI in ways that exploit or manipulate vulnerable people is a reputational and ethical risk beyond technical security. NIST AI 600-1 (Data Privacy) and AI RMF MAP 5.1 relate to it, but how heavily to weigh it is an organizational values choice.",
+      "guidance": "Read the privacy policy and any child-safety or crisis-response documentation.",
       "basis": "preference",
       "references": [
         {
@@ -857,8 +978,8 @@
     {
       "id": "P3",
       "section": "Preference",
-      "factor": "Training on our data / vendor access",
-      "question": "Does the vendor train or improve its AI models on our data without an enforceable opt-out, or keep the ability to access, review, or monitor our inputs and outputs?",
+      "factor": "Training on our data, vendor access",
+      "question": "Does the vendor train its AI on our data without a way to opt out, or keep the right to read, review or monitor what we put in and get out?",
       "options": [
         {
           "label": "Yes",
@@ -873,8 +994,8 @@
       "required": true,
       "hardStop": null,
       "research": "public",
-      "justification": "Values check (+0.5x). Covers the stewardship of data entrusted to us. Contract terms are covered by GV.SC-05, but treating vendor training or monitoring as a values concern that scales the whole score is an organization preference.",
-      "guidance": "Check the signed DPA, not marketing pages.",
+      "justification": "A values check (+0.5×) about stewardship of data entrusted to you. Contract terms are covered by GV.SC-05, but treating vendor training on your data or staff access to your content as a concern that scales the whole score is an organization preference. Check the signed DPA, not marketing pages, since the two often differ.",
+      "guidance": "Check the signed DPA and terms, not marketing pages.",
       "basis": "preference",
       "references": [
         {
@@ -892,10 +1013,207 @@
       ]
     },
     {
+      "id": "P4",
+      "section": "Preference",
+      "factor": "Data stored outside our country",
+      "question": "Does the vendor store or process our data outside our country (or outside the regions our policies allow)?",
+      "options": [
+        {
+          "label": "Yes",
+          "points": 0.5
+        },
+        {
+          "label": "No",
+          "points": 0
+        }
+      ],
+      "enabled": true,
+      "required": true,
+      "hardStop": null,
+      "research": "public",
+      "justification": "A values and legal check (+0.5×). Where data is stored decides which governments and courts can demand it, and which privacy laws apply. Moving data across borders can break contractual or regulatory duties (for example GDPR transfer rules). Many organizations also simply don't want their data leaving their own country. Which regions are acceptable is your call, so edit the question to name them.",
+      "guidance": "Check the vendor's data-residency page, sub-processor list, and DPA for storage and support locations. Include backups and support staff who can view the data. Edit this question to name the countries or regions you require.",
+      "basis": "preference",
+      "references": [
+        {
+          "source": "NIST CSF 2.0",
+          "id": "GV.SC-05",
+          "title": "Cybersecurity supply chain requirements are established, prioritized, and integrated into contracts",
+          "url": "https://doi.org/10.6028/NIST.CSWP.29"
+        },
+        {
+          "source": "NIST SP 800-161 Rev. 1",
+          "title": "Cybersecurity Supply Chain Risk Management Practices for Systems and Organizations (covers supplier location, ownership and foreign influence)",
+          "url": "https://doi.org/10.6028/NIST.SP.800-161r1"
+        },
+        {
+          "source": "GDPR",
+          "id": "Art. 44",
+          "title": "General principle for transfers of personal data to third countries",
+          "url": "https://gdpr-info.eu/art-44-gdpr/"
+        }
+      ],
+      "ignorable": true,
+      "ignoreNote": "NIST and CISA don't say data must stay in any particular country. Where data lives is your organization's rule, and it only matters if you have one: a law (such as GDPR transfer limits), a government or customer contract, or a promise to customers. If none of those apply, ignore it. Keep it if any do."
+    },
+    {
+      "id": "P5",
+      "section": "Preference",
+      "factor": "Sanctioned country connection",
+      "question": "Is the vendor, its parent company, or any place that stores, processes or supports our data in a country or region under U.S. OFAC sanctions (for example Iran, North Korea, Cuba, or the Crimea region)?",
+      "options": [
+        {
+          "label": "Yes",
+          "points": 0.5
+        },
+        {
+          "label": "No",
+          "points": 0
+        }
+      ],
+      "enabled": true,
+      "required": true,
+      "hardStop": null,
+      "research": "public",
+      "justification": "A values and legal check (+0.5×). U.S. persons and companies generally can't do business with sanctioned countries or the people and companies in them, and violations carry serious penalties regardless of intent. A vendor, parent company, support team or data center in a sanctioned place brings that exposure to you. Check the current OFAC list, since sanctions change. Your legal team may want this to be an automatic denial: you can set a hard stop on this question in your policy.",
+      "guidance": "Check where the company is headquartered and owned, and where its data centers and engineering or support teams are. Sanctions change, so use the current OFAC list rather than examples. Ask Legal if unsure.",
+      "basis": "preference",
+      "references": [
+        {
+          "source": "NIST CSF 2.0",
+          "id": "GV.SC-06",
+          "title": "Planning and due diligence are performed to reduce risks before entering into supplier relationships",
+          "url": "https://doi.org/10.6028/NIST.CSWP.29"
+        },
+        {
+          "source": "NIST SP 800-161 Rev. 1",
+          "title": "Cybersecurity Supply Chain Risk Management Practices for Systems and Organizations (covers supplier location, ownership and foreign influence)",
+          "url": "https://doi.org/10.6028/NIST.SP.800-161r1"
+        },
+        {
+          "source": "U.S. Treasury OFAC",
+          "title": "Sanctions programs and country information",
+          "url": "https://ofac.treasury.gov/sanctions-programs-and-country-information"
+        }
+      ]
+    },
+    {
+      "id": "P6",
+      "section": "Preference",
+      "factor": "Reproduces others' copyrighted content",
+      "question": "Can the vendor's AI reproduce other people's copyrighted work (text, code, images) in its output, and does the vendor refuse to indemnify us if we're sued over that output?",
+      "options": [
+        {
+          "label": "Yes",
+          "points": 0.5
+        },
+        {
+          "label": "No",
+          "points": 0
+        }
+      ],
+      "enabled": true,
+      "required": true,
+      "hardStop": null,
+      "research": "public",
+      "justification": "A values and legal check (+0.5×). AI trained on copyrighted material can reproduce it in its output. If your staff use that output in public or product work, you can end up publishing someone else's content, with the legal and reputational risk that follows. A vendor that stands behind its output with an IP indemnity is taking on part of that risk. One that doesn't is leaving it all with you. NIST AI 600-1 names intellectual property as a generative-AI risk but doesn't say how much it should count, so weighing it is your choice.",
+      "guidance": "Look for an IP or copyright indemnity in the terms (several large AI vendors offer one for paid plans), plus any lawsuits over training data. Answer No for software with no AI features.",
+      "basis": "preference",
+      "references": [
+        {
+          "source": "NIST AI 600-1",
+          "id": "2.9",
+          "title": "Intellectual Property",
+          "url": "https://doi.org/10.6028/NIST.AI.600-1"
+        },
+        {
+          "source": "U.S. Copyright Office",
+          "title": "Copyright and Artificial Intelligence",
+          "url": "https://www.copyright.gov/ai/"
+        }
+      ]
+    },
+    {
+      "id": "P7",
+      "section": "Preference",
+      "factor": "Government surveillance or military use",
+      "question": "Does the vendor (or its parent) sell products for government surveillance, military or intelligence use, or hand customer data to government agencies beyond what the law requires?",
+      "options": [
+        {
+          "label": "Yes",
+          "points": 0.5
+        },
+        {
+          "label": "No",
+          "points": 0
+        }
+      ],
+      "enabled": true,
+      "required": true,
+      "hardStop": null,
+      "research": "public",
+      "justification": "A values check (+0.5×). Some organizations don't want their money or data supporting surveillance, military or intelligence work, or sitting with a company that readily gives customer data to governments. Others have no concern. There's no published standard, so this is your organization's values choice. Edit the question to match your own position.",
+      "guidance": "Check the vendor's transparency report, government-request policy, and public contracts. Edit this question to match what your organization actually objects to.",
+      "basis": "preference",
+      "references": [
+        {
+          "source": "NIST CSF 2.0",
+          "id": "GV.SC-06",
+          "title": "Planning and due diligence are performed to reduce risks before entering into supplier relationships",
+          "url": "https://doi.org/10.6028/NIST.CSWP.29"
+        },
+        {
+          "source": "NIST SP 800-161 Rev. 1",
+          "title": "Cybersecurity Supply Chain Risk Management Practices for Systems and Organizations (covers supplier location, ownership and foreign influence)",
+          "url": "https://doi.org/10.6028/NIST.SP.800-161r1"
+        }
+      ],
+      "ignorable": true,
+      "ignoreNote": "No standard or law makes this a security question, and many organizations have no position on it. If yours doesn't, ignore it."
+    },
+    {
+      "id": "P8",
+      "section": "Preference",
+      "factor": "Hard to leave (lock-in)",
+      "question": "Would it be hard to leave this vendor, for example no bulk export of our data in a usable format, proprietary file formats, or fees and penalties for leaving?",
+      "options": [
+        {
+          "label": "Yes",
+          "points": 0.5
+        },
+        {
+          "label": "No",
+          "points": 0
+        }
+      ],
+      "enabled": true,
+      "required": true,
+      "hardStop": null,
+      "research": "public",
+      "justification": "A values and business check (+0.5×). If leaving is hard, you're stuck with the vendor's price increases, outages and policy changes, and you can't easily walk away after an incident. NIST asks that supplier plans cover what happens after the relationship ends. How much lock-in your organization will accept is a business choice.",
+      "guidance": "Look for a data-export tool or API, supported formats, and exit or termination terms in the contract.",
+      "basis": "preference",
+      "references": [
+        {
+          "source": "NIST CSF 2.0",
+          "id": "GV.SC-10",
+          "title": "Supply chain risk management plans include provisions for activities after the end of a partnership or service agreement",
+          "url": "https://doi.org/10.6028/NIST.CSWP.29"
+        },
+        {
+          "source": "NIST SP 800-161 Rev. 1",
+          "title": "Cybersecurity Supply Chain Risk Management Practices for Systems and Organizations (covers supplier location, ownership and foreign influence)",
+          "url": "https://doi.org/10.6028/NIST.SP.800-161r1"
+        }
+      ],
+      "ignorable": true,
+      "ignoreNote": "Lock-in is a business tradeoff, not a security flaw. For a tool that is easy to replace or low-stakes, you can ignore it. Keep it for anything you'd struggle to move off of."
+    },
+    {
       "id": "M1",
       "section": "Mitigation",
-      "factor": "Signed DPA with no-training + deletion",
-      "question": "Do we have a signed DPA / contract that prohibits training on our data and requires deletion at contract end?",
+      "factor": "Signed DPA: no training, deletion",
+      "question": "Do we have a signed data processing agreement (DPA) that bans training on our data and requires deletion when the contract ends?",
       "options": [
         {
           "label": "Yes",
@@ -910,8 +1228,8 @@
       "required": false,
       "hardStop": null,
       "research": "internal",
-      "justification": "Contract terms make vendor promises enforceable. Cuts final score by 10%.",
-      "guidance": "Answer Yes only if signed, not just offered.",
+      "justification": "Contract terms make vendor promises enforceable. A signed DPA with no-training and deletion commitments turns a marketing claim into an obligation you can hold the vendor to. Cuts the final score by 10%. Count it only if signed, not just offered.",
+      "guidance": "Answer Yes only if it's signed, not just offered.",
       "basis": "standard",
       "references": [
         {
@@ -925,8 +1243,8 @@
     {
       "id": "M2",
       "section": "Mitigation",
-      "factor": "Zero-retention / privacy mode enforced",
-      "question": "Is a zero-data-retention or privacy mode enforced by an admin for all our users (users cannot turn it off)?",
+      "factor": "Zero-retention mode enforced",
+      "question": "Is zero-data-retention or privacy mode switched on by an admin for all our users, so no one can turn it off?",
       "options": [
         {
           "label": "Yes",
@@ -941,8 +1259,8 @@
       "required": false,
       "hardStop": null,
       "research": "internal",
-      "justification": "Removes most training and retention exposure. Cuts final score by 10%.",
-      "guidance": "",
+      "justification": "Zero-retention or privacy mode removes most of the training and retention exposure at its source: if the vendor never keeps the data, a later breach or policy change can't expose it. It must be enforced for the whole organization, not left as a per-user setting. Cuts the final score by 10%.",
+      "guidance": "Confirm in the admin console that it is enforced, not just available.",
       "basis": "standard",
       "references": [
         {
@@ -962,8 +1280,8 @@
     {
       "id": "M3",
       "section": "Mitigation",
-      "factor": "SSO + automated provisioning",
-      "question": "Will access be through SSO with automated provisioning/deprovisioning (SCIM), limited to named users?",
+      "factor": "SSO with automatic provisioning",
+      "question": "Will people sign in through SSO, with accounts created and removed automatically (SCIM) and limited to named users?",
       "options": [
         {
           "label": "Yes",
@@ -978,8 +1296,8 @@
       "required": false,
       "hardStop": null,
       "research": "internal",
-      "justification": "Shrinks account-takeover and orphaned-account risk. Cuts final score by 5%.",
-      "guidance": "",
+      "justification": "SSO with automated provisioning means access follows your identity system, so offboarding is immediate and passwords aren't reused. That shrinks account-takeover and orphaned-account risk. Cuts the final score by 5%.",
+      "guidance": "Needs a plan tier that supports SCIM.",
       "basis": "standard",
       "references": [
         {
@@ -999,8 +1317,8 @@
     {
       "id": "M4",
       "section": "Mitigation",
-      "factor": "Technical data restrictions",
-      "question": "Is sensitive data blocked from the tool by a technical control (DLP, CASB policy, scoped permissions)?",
+      "factor": "Sensitive data blocked by technical controls",
+      "question": "Is sensitive data kept out of the tool by a technical control, such as a DLP rule, a CASB policy, or restricted permissions?",
       "options": [
         {
           "label": "Yes",
@@ -1015,8 +1333,8 @@
       "required": false,
       "hardStop": null,
       "research": "internal",
-      "justification": "Enforced limits beat policy-only limits. Cuts final score by 10%.",
-      "guidance": "A written 'please don't paste PII' policy does not count.",
+      "justification": "Enforced technical limits (DLP rules, blocked connectors, restricted scopes) work even when people are rushed or unaware, unlike policy-only limits. Cuts the final score by 10%. A written 'please don't paste PII' rule does not count.",
+      "guidance": "A written 'please don't paste personal data' rule does not count.",
       "basis": "standard",
       "references": [
         {
@@ -1036,8 +1354,8 @@
     {
       "id": "M5",
       "section": "Mitigation",
-      "factor": "Time-boxed pilot",
-      "question": "Is approval limited to a time-boxed pilot with a scheduled re-review?",
+      "factor": "Time-limited pilot",
+      "question": "Is approval limited to a pilot with an end date and a scheduled re-review?",
       "options": [
         {
           "label": "Yes",
@@ -1052,8 +1370,8 @@
       "required": false,
       "hardStop": null,
       "research": "internal",
-      "justification": "Caps exposure while evidence is gathered. Cuts final score by 5%.",
-      "guidance": "",
+      "justification": "A time-boxed pilot caps your exposure while evidence is gathered: a small group, limited data, a fixed end date and a decision point. Cuts the final score by 5%.",
+      "guidance": "Put the end date and the review owner in the notes.",
       "basis": "standard",
       "references": [
         {

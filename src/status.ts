@@ -1,4 +1,4 @@
-import { compute } from "./engine";
+import { compute, isIgnored } from "./engine";
 import { missingDetails, reviewFlags } from "./report";
 import type { Settings } from "./settings";
 import type { Answer, Assessment, Policy, Section } from "./types";
@@ -11,7 +11,7 @@ export const isUnreviewedAi = (x?: Answer) => !!x && x.origin === "ai" && !!(x.r
 export const unreviewedAi = (a: Assessment) => Object.values(a.answers).filter(isUnreviewedAi).length;
 
 export function sectionStatus(policy: Policy, a: Assessment, sec: Section): Bubble {
-  const fs = policy.factors.filter((f) => f.section === sec && f.enabled);
+  const fs = policy.factors.filter((f) => f.section === sec && f.enabled && !isIgnored(f, a.answers[f.id]));
   const missing = fs.filter((f) => f.required && !a.answers[f.id]?.response).length;
   const ai = fs.filter((f) => isUnreviewedAi(a.answers[f.id])).length;
   if (missing) return ["todo", `TODO ${missing}`];

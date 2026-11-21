@@ -23,6 +23,10 @@ export interface Factor {
   references: Reference[];
   justification: string;
   guidance: string;
+  /** A pure value choice: assessors may switch it off for one assessment ("Ignore"). */
+  ignorable?: boolean;
+  /** Shown under "Why it matters" when ignorable: why it is fine to skip. */
+  ignoreNote?: string;
 }
 
 export interface Reference {
@@ -66,6 +70,8 @@ export interface Answer {
   needsConfirmation?: boolean;
   /** What AI research answered, kept so approvers can see when a person changed it. */
   aiResponse?: string;
+  /** The assessor chose to ignore this question (only allowed when it is ignorable). It is not scored or required. */
+  ignored?: boolean;
 }
 
 export interface Details {

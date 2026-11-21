@@ -191,7 +191,7 @@ export function reportPdf(policy: Policy, a: Assessment, org: OrgSettings): TDoc
                 { text: f.factor.question, fontSize: 8 },
                 {
                   stack: [
-                    { text: [f.response || "—", ans?.origin === "ai" ? { text: "  AI", color: "#3b2a8f", bold: true, fontSize: 7 } : ""] },
+                    { text: [f.status === "Ignored" ? "Ignored" : f.response || "—", ans?.origin === "ai" ? { text: "  AI", color: "#3b2a8f", bold: true, fontSize: 7 } : ""] },
                     // A person changed what AI research found: show the original.
                     ...(ans?.aiResponse && ans.origin === "user" && ans.response !== ans.aiResponse
                       ? [{ text: `AI said: ${ans.aiResponse}`, fontSize: 7, color: TONES.warn.ink, bold: true }]
