@@ -21,13 +21,17 @@ The left-hand pane shows what's left: yellow **TODO**, purple **REVIEW** for AI 
 
 ```sh
 brew tap zaclohrenz/assessit https://github.com/zaclohrenz/AssessIT
+brew trust --cask zaclohrenz/assessit/assessit
 brew install --cask assessit
 ```
+
+Homebrew 7 won't load casks from third-party taps until you trust them; `brew trust` approves just this one cask.
 
 If your organization gave you a config URL, install with it instead. AssessIT then starts with your org's approval destination, scoring policy and locks:
 
 ```sh
 brew tap zaclohrenz/assessit https://github.com/zaclohrenz/AssessIT
+brew trust --cask zaclohrenz/assessit/assessit
 HOMEBREW_ASSESSIT_CONFIG_URL="https://…/assessit-config.json" brew install --cask assessit
 ```
 
@@ -134,7 +138,7 @@ Admin-managed settings win. Next, a URL typed in Settings beats the install-time
 
 **The public default config can never set where submissions go,** lock anything or set rules: it can only update the scoring policy. That way a bad edit to this project's GitHub release can't redirect anyone's data. Your own config has no such limit. The app caches the last good config, so it keeps working offline.
 
-If you'd rather have your own one-line install, copy [`Casks/assessit.rb`](Casks/assessit.rb) into your own tap and replace `ENV.fetch("HOMEBREW_ASSESSIT_CONFIG_URL", "")` with your URL. Then `brew install --cask yourco/tap/assessit` installs with your config built in.
+If you'd rather have your own one-line install, copy [`Casks/assessit.rb`](Casks/assessit.rb) into your own tap and replace `ENV.fetch("HOMEBREW_ASSESSIT_CONFIG_URL", "")` with your URL. Then `brew trust --cask yourco/tap/assessit && brew install --cask yourco/tap/assessit` installs with your config built in.
 
 ## Sending results for approval
 
