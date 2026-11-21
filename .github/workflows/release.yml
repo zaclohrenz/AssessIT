@@ -155,12 +155,12 @@ jobs:
       - run: node scripts/set-version.mjs ${{ needs.plan.outputs.version }}
       - run: npm ci
       - run: npx tauri build --bundles deb,appimage
+      # Flat folder, so the artifact has no deb/ or appimage/ subfolders and publish's `out/*` only sees files.
+      - run: mkdir linux-out && cp src-tauri/target/release/bundle/deb/*.deb src-tauri/target/release/bundle/appimage/*.AppImage linux-out/
       - uses: actions/upload-artifact@v6
         with:
           name: linux
-          path: |
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/appimage/*.AppImage
+          path: linux-out/*
           if-no-files-found: error
 
   publish:
