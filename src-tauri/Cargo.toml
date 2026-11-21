@@ -1,6 +1,6 @@
 [package]
 name = "assessit"
-version = "0.1.2"
+version = "0.1.3"
 description = "Software risk assessment with AI-gathered evidence"
 authors = ["zaclohrenz"]
 license = "MIT"
