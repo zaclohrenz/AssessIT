@@ -6,6 +6,7 @@ import { bandFor, compute, draftMessage, formatDate, isIgnored, pathToApproval, 
 import { chooseConfig, sanitizeConfig, type ConfigChoice } from "./orgconfig";
 import { reportPdf } from "./pdf";
 import { APP_VERSION, changedFromAi, STATUSES, decisionTone, fmtPts, listFields, REQUIRED_DETAILS, reviewFlags, SHAREPOINT_COLUMNS, webhookPayload, xlsxSheets } from "./report";
+import { isNewer, releaseUrl, type UpdateState } from "./update";
 import { navStatus, sectionStatus, unreviewedAi as countUnreviewedAi, type Bubble, type BubbleKind } from "./status";
 import { manualPrompt, mergeResearch, parseManualResponse, researchPrompt, researchSchema, type ResearchOutput } from "./research";
 import {
@@ -184,7 +185,6 @@ function render() {
     </header>
     <nav id="nav"></nav>
     <main><div class="page" id="page"></div></main>
-    <button class="app-version" data-url="https://github.com/zaclohrenz/AssessIT/releases/tag/v${APP_VERSION}" title="Release notes for v${APP_VERSION} on GitHub">v${APP_VERSION}</button>
   </div>`;
   renderNav();
   renderPage();
@@ -489,7 +489,7 @@ function qRow(f: Factor): string {
     <div><span class="text">${esc(f.question)}</span><span id="badges-${f.id}"><span class="badge edited">Ignored</span></span>
       <div class="guide">Not scored, not required. Your report will say you ignored it.</div>
       ${whyItMatters(f)}</div>
-    <div class="body"><div class="opts"><button class="btn small" data-ignore="${f.id}" data-val="">Include it again</button></div></div></div>`;
+    <div class="body"><div class="opts"><button class="opt on" data-ignore="${f.id}" data-val="" title="Score this question again">Ignored · include it again</button></div></div></div>`;
   const opts = f.options
     .map((o) => `<button class="opt ${resp === o.label ? "on" : ""}" data-opt="${f.id}" data-val="${esc(o.label)}" title="${esc(fmtPts(o.points, f.section))}">${esc(o.label)}</button>`)
     .join("");
@@ -500,7 +500,7 @@ function qRow(f: Factor): string {
       ${basisChips(f) ? `<div class="refs">${basisChips(f)}</div>` : ""}
       ${whyItMatters(f)}</div>
     <div class="body">
-      <div class="opts">${opts}${resp ? `<button class="btn small" data-opt="${f.id}" data-val="">Clear</button>` : ""}${f.ignorable ? `<button class="btn small ghost" data-ignore="${f.id}" data-val="1" title="Skip this question. It won't be scored or required.">Ignore</button>` : ""}</div>
+      <div class="opts">${opts}${f.ignorable ? `<button class="opt" data-ignore="${f.id}" data-val="1" title="Skip this question. It won't be scored or required.">Ignore</button>` : ""}${resp ? `<button class="btn small" data-opt="${f.id}" data-val="">Clear</button>` : ""}</div>
       <div class="ev">
         <textarea placeholder="Notes / evidence" data-ans="${f.id}" data-field="notes">${esc(ans?.notes ?? "")}</textarea>
         <textarea placeholder="Source URL(s)" data-ans="${f.id}" data-field="sources">${esc(ans?.sources ?? "")}</textarea>
