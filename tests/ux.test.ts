@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cautiousChoice, compute, riskMeter } from "../src/engine";
+import { cautiousChoice, compute, optionTone, riskMeter, toneWords } from "../src/engine";
 import { extractUrls, linkLabel } from "../src/links";
 import { aiAnswerIds, aiAttestationText, answersText, reviewFlags, scoreCaption, scoreHeadline, webhookPayload } from "../src/report";
 import defaultPolicy from "../src/policy/default-policy.json";
@@ -112,5 +112,35 @@ describe("AI agreement (a reminder, never a gate)", () => {
     const a = fresh();
     a.answers.L2.origin = "user";
     expect(aiAttestationText(a)).toBe("");
+  });
+});
+
+describe("option colour cue", () => {
+  const f = (id: string) => policy.factors.find((x) => x.id === id)!;
+  const tones = (id: string) => Object.fromEntries(f(id).options.map((o) => [o.label, optionTone(f(id), o.label)]));
+  it("marks the answer that adds risk, whichever way round the question is worded", () => {
+    expect(tones("L1")).toEqual({ Yes: "good", No: "bad" }); // "has an audit?" Yes is the good answer
+    expect(tones("L6")).toEqual({ Yes: "bad", No: "good" }); // "bought outside review?" Yes is the bad one
+  });
+  it("shows an honest Unknown as in-between", () => {
+    expect(tones("L2")).toEqual({ Yes: "bad", No: "good", Unknown: "mid" });
+  });
+  it("grades ladders by how much of the question's maximum each step adds", () => {
+    expect(tones("I3")).toEqual({ Sensitive: "bad", Confidential: "bad", Internal: "mid", Public: "good" });
+  });
+  it("shows mitigations you have as good, and ones you don't as no credit rather than bad", () => {
+    expect(tones("M1")).toEqual({ Yes: "good", No: "none" });
+  });
+  it("every option of every default question has a tone, and 'none' only on mitigations", () => {
+    for (const q of policy.factors)
+      for (const o of q.options) {
+        const t = optionTone(q, o.label);
+        expect(["good", "mid", "bad", "none"], `${q.id} ${o.label}`).toContain(t);
+        if (t === "none") expect(q.section, q.id).toBe("Mitigation");
+      }
+  });
+  it("describes each tone in words for the tooltip", () => {
+    expect(toneWords("bad")).toBe("adds the most risk");
+    expect(toneWords("none")).toBe("no credit");
   });
 });

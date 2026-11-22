@@ -129,6 +129,28 @@ export function riskMeter(i: {
 }
 
 /**
+ * How an answer moves the score, for the light colour cue on each option:
+ *   good  adds nothing (or, for a mitigation, earns the credit)
+ *   mid   adds up to half of the most this question can add
+ *   bad   adds more than half
+ *   none  a mitigation you don't have: it simply earns no credit
+ */
+export type OptionTone = "good" | "mid" | "bad" | "none";
+export function optionTone(f: Pick<Factor, "section" | "options">, label: string): OptionTone {
+  const o = f.options.find((x) => x.label === label);
+  if (!o) return "none";
+  if (f.section === "Mitigation") return o.points > 0 ? "good" : "none";
+  const max = Math.max(...f.options.map((x) => x.points));
+  if (max <= 0) return "none";
+  const share = o.points / max;
+  return share === 0 ? "good" : share <= 0.5 ? "mid" : "bad";
+}
+
+const TONE_WORDS: Record<OptionTone, string> = { good: "lowers risk", mid: "adds some risk", bad: "adds the most risk", none: "no credit" };
+/** "+2 pts · adds the most risk": the tooltip, so the colour is never the only cue. */
+export const toneWords = (t: OptionTone) => TONE_WORDS[t];
+
+/**
  * The answer to pick when you can't tell: the one that counts most against approval, so missing
  * evidence never makes a tool look safer than it is. That's the highest-scoring option, except for
  * mitigations, where "Yes" earns a credit and so the cautious answer is the lowest one. Questions with a

@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { bandFor, cautiousChoice, compute, draftMessage, formatDate, isIgnored, pathToApproval, summary, type Result } from "./engine";
+import { bandFor, cautiousChoice, compute, draftMessage, formatDate, isIgnored, optionTone, pathToApproval, summary, toneWords, type Result } from "./engine";
 import { chooseConfig, sanitizeConfig, type ConfigChoice } from "./orgconfig";
 import { reportPdf } from "./pdf";
 import { APP_VERSION, changedFromAi, STATUSES, decisionTone, fmtPts, listFields, REQUIRED_DETAILS, reviewFlags, scoreCaption, scoreHeadline, SHAREPOINT_COLUMNS, webhookPayload, xlsxSheets, ZONE_LABEL } from "./report";
@@ -542,7 +542,10 @@ function qRow(f: Factor): string {
       ${whyItMatters(f)}</div>
     <div class="body"><div class="opts"><button class="opt on" data-ignore="${esc(f.id)}" data-val="" title="Score this question again">Ignored · include it again</button></div></div></div>`;
   const opts = f.options
-    .map((o) => `<button class="opt ${resp === o.label ? "on" : ""}" data-opt="${esc(f.id)}" data-val="${esc(o.label)}" title="${esc(fmtPts(o.points, f.section))}">${esc(o.label)}</button>`)
+    .map((o) => {
+      const tone = optionTone(f, o.label);
+      return `<button class="opt ${resp === o.label ? "on" : ""}" data-tone="${tone}" data-opt="${esc(f.id)}" data-val="${esc(o.label)}" title="${esc(fmtPts(o.points, f.section))} · ${toneWords(tone)}">${esc(o.label)}</button>`;
+    })
     .join("");
   return `<div class="q ${f.required && !resp ? "unanswered-req" : ""}" id="q-${esc(f.id)}">
     <div class="id">${esc(f.id)}</div>
