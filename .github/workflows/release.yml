@@ -6,7 +6,8 @@ name: Release
 #   macos     tests and builds the universal Mac zip    ┐ in parallel, from the same commit.
 #   windows   builds the Windows installer              │ Nothing is public yet.
 #   linux     builds the .deb and AppImage              ┘
-#   publish   waits for approval if the "release" environment requires it, then creates the tag and
+#   publish   waits for approval if the "release" environment requires it, signs the files the in-app
+#             updater downloads (the only job that sees the signing key), then creates the tag and
 #             the GitHub release with every file attached, and merges the version + Homebrew cask
 #             commit into main through a pull request (main only accepts changes through PRs).
 #
@@ -113,6 +114,7 @@ jobs:
           name: macos
           path: |
             release/*.zip
+            release/*.tar.gz
             release/assessit-config.json
             release/default-policy.json
           if-no-files-found: error
@@ -177,6 +179,48 @@ jobs:
         with:
           path: out
           merge-multiple: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      # --ignore-scripts: no dependency's install script runs in the job that holds the signing key.
+      - run: npm ci --ignore-scripts
+      # Signs every file the in-app updater can download, then builds latest.json from them. The key
+      # exists only in this step's environment. Output of the signing tool is never printed: a failure
+      # says which file failed and nothing else, so the public log can't leak key material.
+      # Nothing is public yet, so a failure here changes nothing: fix the secrets and run again.
+      - name: Sign update files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ needs.plan.outputs.version }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set +x
+          # An earlier attempt already published: the next step only finishes updating main.
+          if [ "$(gh release view "v$V" --json isDraft -q .isDraft 2>/dev/null || true)" = "false" ]; then
+            echo "v$V is already published; nothing to sign."; exit 0
+          fi
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is empty or missing. Add it under Settings → Environments → release → Environment secrets (README: Update signing)."
+            exit 1
+          fi
+          log="$RUNNER_TEMP/sign.log"
+          for pattern in '*-macos-universal.app.tar.gz' '*-setup.exe' '*.AppImage' '*.deb'; do
+            files=$(find out -maxdepth 1 -name "$pattern")
+            if [ -z "$files" ]; then
+              echo "::error::No file matching $pattern to sign. Did a build job change its output?"; exit 1
+            fi
+            for f in $files; do
+              if ! npx tauri signer sign --app-version "$V" "$f" >"$log" 2>&1; then
+                rm -f "$log"
+                echo "::error::Signing $(basename "$f") failed. Details are withheld so the log can't expose the key. To see why, run \`npx tauri signer sign\` locally with the same key and password. Usual causes: the secret holds only part of the key file, or the password secret is wrong."
+                exit 1
+              fi
+              rm -f "$log"
+            done
+          done
+          node scripts/updater-manifest.mjs out "$V"
       - env:
           GH_TOKEN: ${{ github.token }}
           V: ${{ needs.plan.outputs.version }}

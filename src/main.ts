@@ -6,7 +6,9 @@ import { bandFor, compute, draftMessage, formatDate, isIgnored, pathToApproval, 
 import { chooseConfig, sanitizeConfig, type ConfigChoice } from "./orgconfig";
 import { reportPdf } from "./pdf";
 import { APP_VERSION, changedFromAi, STATUSES, decisionTone, fmtPts, listFields, REQUIRED_DETAILS, reviewFlags, SHAREPOINT_COLUMNS, webhookPayload, xlsxSheets } from "./report";
-import { isNewer, releaseUrl, type UpdateState } from "./update";
+import { check, type Update } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { percent, releaseUrl, type UpdateState } from "./update";
 import { navStatus, sectionStatus, unreviewedAi as countUnreviewedAi, type Bubble, type BubbleKind } from "./status";
 import { manualPrompt, mergeResearch, parseManualResponse, researchPrompt, researchSchema, type ResearchOutput } from "./research";
 import {
@@ -218,26 +220,68 @@ function renderNav() {
       <div class="verrow"><button class="verlink" data-url="${releaseUrl(APP_VERSION)}" title="Release notes for v${APP_VERSION} on GitHub">v${APP_VERSION} ↗</button>${updateBadge()}</div></div>`;
 }
 
-/** The dot next to the version: green = latest, yellow = newer release exists, grey = couldn't check. */
+/** The dot next to the version: green = latest, yellow = newer release (click to install), grey = couldn't check. */
 function updateBadge(): string {
   const u = S.update;
-  if (u.kind === "available")
-    return `<button class="upd warn" data-url="${releaseUrl(u.latest)}" title="Open the release page. With Homebrew: brew upgrade --cask assessit"><span class="udot"></span>${esc(u.latest.replace(/^v/, "v"))} available</button>`;
-  if (u.kind === "latest") return `<button class="upd ok" data-action="check-update" title="You're on the latest release. Click to check again."><span class="udot"></span>Latest</button>`;
+  if (u.kind === "available") {
+    const v = esc(u.latest.replace(/^v/, ""));
+    if (u.failed)
+      return `<button class="upd warn" data-action="install-update" title="${esc(u.failed)}. Click to try again."><span class="udot"></span>Update failed. Retry</button>` +
+        `<button class="upd" data-url="${releaseUrl(u.latest)}" title="Download v${v} from GitHub instead">Download ↗</button>`;
+    return `<button class="upd warn" data-action="install-update" title="Download v${v}, install it and restart AssessIT"><span class="udot"></span>Update to v${v}</button>`;
+  }
+  if (u.kind === "installing")
+    return `<span class="upd warn"><span class="udot"></span>${u.pct === null ? "Downloading…" : u.pct >= 100 ? "Installing…" : `Downloading ${u.pct}%`}</span>`;
+  if (u.kind === "latest") return `<button class="upd ok" data-action="check-update" title="You're on the latest release. Click to check again."><span class="udot"></span>Up to date</button>`;
   if (u.kind === "checking") return `<span class="upd"><span class="udot"></span>Checking…</span>`;
   return `<button class="upd" data-action="check-update" title="${esc(u.message)}. Click to try again."><span class="udot"></span>Can't check</button>`;
 }
+
+/** The update found by the last check, kept so "Update" can install it without asking GitHub again. */
+let pendingUpdate: Update | null = null;
 
 async function checkForUpdate() {
   S.update = { kind: "checking" };
   renderNav();
   try {
-    const tag = await invoke<string>("latest_release");
-    S.update = isNewer(tag, APP_VERSION) ? { kind: "available", latest: tag.replace(/^v/, "") } : { kind: "latest" };
+    pendingUpdate = await check({ timeout: 15000 });
+    S.update = pendingUpdate ? { kind: "available", latest: pendingUpdate.version } : { kind: "latest" };
   } catch (e) {
+    pendingUpdate = null;
     S.update = { kind: "error", message: errText(e) };
   }
   renderNav();
+}
+
+/** Downloads the update (the plugin refuses anything not signed with our key), installs it and restarts. */
+async function installUpdate() {
+  const u = pendingUpdate;
+  if (!u || S.update.kind !== "available") return;
+  const go = await ask(
+    `Install AssessIT ${u.version} and restart?\n\nRestarting closes this assessment, so export or submit anything you want to keep first.`,
+    { title: "Update AssessIT", kind: "info", okLabel: "Install & restart", cancelLabel: "Not now" },
+  );
+  if (!go) return;
+  let received = 0;
+  let total = 0;
+  S.update = { kind: "installing", latest: u.version, pct: null };
+  renderNav();
+  try {
+    await u.downloadAndInstall((ev) => {
+      if (ev.event === "Started") total = ev.data.contentLength ?? 0;
+      else if (ev.event === "Progress") received += ev.data.chunkLength;
+      else if (ev.event === "Finished") received = total;
+      const pct = percent(received, total);
+      if (S.update.kind === "installing" && pct !== S.update.pct) {
+        S.update = { kind: "installing", latest: u.version, pct };
+        renderNav();
+      }
+    });
+    await relaunch();
+  } catch (e) {
+    S.update = { kind: "available", latest: u.version, failed: errText(e) };
+    renderNav();
+  }
 }
 
 function refreshHeader() {
@@ -1237,6 +1281,7 @@ async function graphSignIn() {
 
 const actions: Record<string, () => unknown> = {
   "check-update": () => checkForUpdate(),
+  "install-update": () => installUpdate(),
   new: newAssessment,
   open: openFile,
   save: saveFile,

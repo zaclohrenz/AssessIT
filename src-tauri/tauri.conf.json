@@ -45,5 +45,14 @@
       "signingIdentity": "-",
       "minimumSystemVersion": "11.0"
     }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk5QTc4N0YzMTZCN0FBRjMKUldUenFyY1c4NGVubVYxZGtsWHVzL1ErQ3crNHNMTVoyeC9DM0Q1Qkp5U0RRLytXYmNtWlZIZFYK",
+      "endpoints": [
+        "https://github.com/zaclohrenz/AssessIT/releases/latest/download/latest.json"
+      ],
+      "requireSignedVersion": true
+    }
   }
 }
