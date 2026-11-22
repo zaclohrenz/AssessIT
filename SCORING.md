@@ -24,6 +24,48 @@ Then:
 
 The code is a direct copy of this: [`riskScore()` in `src/engine.ts`](src/engine.ts).
 
+## When you can't find it: two kinds of question
+
+Not finding something means different things depending on what the question asks. AssessIT handles the two kinds differently, on purpose, so that **a gap is never scored as a clean bill of health, and never as an accusation.**
+
+### "Does the vendor have X?": it has to be shown
+
+A certification, single sign-on with MFA, a written deletion promise, a breach-notification deadline, a way to report flaws. For these, **credit is only given for what can be shown.** If you can't find it, or the contract isn't public, the answer is **No**, and an AI answer is flagged for you to confirm with the vendor.
+
+Why: a control you can't verify is a control you can't rely on. A vendor that can't produce a SOC 2 report shouldn't score like one that can, and a deletion promise that exists only in a contract you haven't seen protects nobody. There is deliberately **no Unknown** here. It would let "I didn't look" and "they don't have it" hide behind each other.
+
+### "Did something bad happen?": a missed search proves nothing
+
+A breach, a lawsuit or regulator action, an ownership change, data stored abroad. Here the burden is on whoever is checking, because **finding nothing doesn't prove nothing happened**. Search engines miss things, court dockets aren't all indexed, and breach notices are scattered across regulators. So there are three honest answers:
+
+| Answer | What it means |
+|---|---|
+| **Yes** | You can point to it: a source that describes it. |
+| **No** | You checked **at least two kinds of source** (for example a regulator or court record *and* news) and found nothing. The notes say what you checked. |
+| **Unknown** | You tried and couldn't establish it either way: thin or conflicting sources, or sources you couldn't reach. It scores **about half** of what a Yes does. |
+
+Why half. Zero would score a gap as a clean record, which rewards vendors that are hard to research. The full penalty would accuse a vendor of something nobody has shown, and would treat an obscure vendor the same as one with a documented breach. Half says "we don't know, and not knowing carries some risk."
+
+Unknown is for *"I tried and couldn't tell"*, not for *"I only ran one search"*. Do the second check first.
+
+**Questions with an Unknown answer:** L2, L3, L4, L8, L10, L13, P4, P5, P7, P8. Two older questions follow the same idea with their own wording: L7 scores "Not rated" at 2 of 3, and L9 scores "Unknown" the same as Yes, because you can't assess a chain of sub-processors you can't see.
+
+The AI research follows the same rules. It gives credit only for what it can cite, answers No to a bad-event question only after checking two kinds of source, and otherwise says Unknown, with its notes and sources shown for you to check. When you aren't sure yourself, the line under each question says which answer to pick.
+
+## Reading the result
+
+The report shows the score as a **percentage of the approval limit**: the score where the policy starts denying (58 in the defaults). **Lower is better, and 100% is the line.**
+
+| Color | Meaning |
+|---|---|
+| **Green** | Under the limit. |
+| **Yellow** | Over the limit, but the mitigations the policy still offers could bring it under. |
+| **Red** | Over the limit even with every mitigation, or a hard-stop answer was given. |
+
+The theoretical maximum (every answer at its worst) isn't shown, because no real vendor is near it and it makes every real score look tiny.
+
+Each answer also carries a small marker for which way it pushes the score: a green circle lowers risk, a yellow diamond adds some, a red triangle adds the most. It follows the points, so it's right whichever way a question is worded. A mitigation you don't have shows no marker, because "no credit" isn't a bad answer.
+
 ## Worked example
 
 From the original spreadsheet: an enterprise AI assistant with confidential (non-PII) data and admin-level integrations.

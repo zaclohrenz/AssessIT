@@ -9,4 +9,18 @@ describe("SCORING.md", () => {
     const doc = readFileSync("SCORING.md", "utf8");
     expect(doc).toBe(replaceTables(doc, renderTables(defaultPolicy)));
   });
+
+  it("lists exactly the questions that have an Unknown answer, so the rationale can't drift from the policy", () => {
+    const doc = readFileSync("SCORING.md", "utf8");
+    const withUnknown = (defaultPolicy as { factors: { id: string; options: { label: string }[] }[] }).factors
+      .filter((f) => f.options.some((o) => o.label === "Unknown") && f.id !== "L9")
+      .map((f) => f.id);
+    expect(doc).toContain(`**Questions with an Unknown answer:** ${withUnknown.join(", ")}.`);
+  });
+  it("states the figures the code uses", () => {
+    const doc = readFileSync("SCORING.md", "utf8");
+    const denied = (defaultPolicy as { bands: { decision: string; scoreMin: number }[] }).bands.find((b) => b.decision === "Denied")!;
+    expect(doc).toContain(`(${denied.scoreMin} in the defaults)`);
+    expect(doc).toMatch(/at least two kinds of source/);
+  });
 });
