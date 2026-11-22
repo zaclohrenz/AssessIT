@@ -1,6 +1,6 @@
 cask "assessit" do
-  version "0.1.5"
-  sha256 "2efd13b4bc66ba2fc54e9fb5d2286dd55346dbb79cf277ce26561dd9284d5630"
+  version "0.1.6"
+  sha256 "e7676922b8eed3182f29e65558f744af037dc25c3871e79fe636ca3be880de7a"
 
   url "https://github.com/zaclohrenz/AssessIT/releases/download/v#{version}/AssessIT-#{version}-macos-universal.zip"
   name "AssessIT"
