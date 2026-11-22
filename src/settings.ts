@@ -132,12 +132,28 @@ export function lockedPaths(org: OrgConfig | null): Set<string> {
 
 export const orgRules = (org: OrgConfig | null): OrgRules => ({ ...DEFAULT_RULES, ...org?.rules });
 
+/**
+ * Question IDs end up in element ids, data attributes and CSS selectors, and a policy can come from a URL an
+ * organization controls. So they're checked at the door, once, for every way a policy gets in (default,
+ * remote config, imported file): a letter, then letters, digits, "_" or "-". Output is also escaped, but a
+ * bad ID never gets as far as output.
+ */
+export const FACTOR_ID = /^[A-Za-z][A-Za-z0-9_-]{0,15}$/;
+const POLICY_VERSION = /^[A-Za-z0-9._+-]{1,20}$/;
+
 export function validatePolicy(p: any): Policy {
   if (!p || !Array.isArray(p.factors) || !Array.isArray(p.bands) || !p.bands.length)
     throw new Error("Not a policy file: needs 'factors' and 'bands'.");
+  if (p.version !== undefined && !POLICY_VERSION.test(String(p.version)))
+    throw new Error("Policy version must be a short number or label, like 3 or 2.1.");
+  const seen = new Set<string>();
   for (const f of p.factors) {
-    if (!f.id || !f.section || !Array.isArray(f.options) || !f.options.length)
-      throw new Error(`Factor ${f.id ?? "?"} is missing id, section or options.`);
+    if (typeof f.id !== "string" || !FACTOR_ID.test(f.id))
+      throw new Error(`Question ID ${JSON.stringify(f.id)?.slice(0, 40) ?? "?"} isn't allowed: use a letter followed by letters, digits, "-" or "_" (16 characters at most), like L1.`);
+    if (seen.has(f.id)) throw new Error(`Question ID ${f.id} is used twice.`);
+    seen.add(f.id);
+    if (!f.section || !Array.isArray(f.options) || !f.options.length)
+      throw new Error(`Factor ${f.id} is missing section or options.`);
     if (!["Likelihood", "Impact", "Preference", "Mitigation"].includes(f.section))
       throw new Error(`Factor ${f.id}: unknown section "${f.section}".`);
   }

@@ -179,6 +179,7 @@ Setup takes about 20 minutes for a SharePoint admin: the list, permissions, a fr
 - Assessments stay on your computer: autosaved in the app, or saved as `.assessit.json` files.
 - AI research sends the vendor, product, plan and intended use to whichever AI you choose.
 - Submitting sends the assessment only to the destination in your settings.
+- The app only reads or writes files you choose in a save/open window: the window and the file access both happen in the app's Rust side, so a page can't name a path itself. Exported files are the only thing it opens afterwards.
 - At launch, the app downloads your org config: the public defaults from GitHub unless you've set your own URL or turned it off in Settings. No telemetry.
 
 ## Releasing

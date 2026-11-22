@@ -176,6 +176,11 @@ To roll this out to everyone, click **Export org config**, add `"lock": ["submit
 - macOS: `~/Library/Application Support/io.github.zaclohrenz.assessit/graph-token.json`
 - Windows: `%APPDATA%\io.github.zaclohrenz.assessit\`
 
+### Security notes for your admins
+
+- **Where the token lives.** It's a plain file readable only by the signed-in user, not in the macOS Keychain or Windows Credential Manager. That's a deliberate trade-off: AssessIT is ad-hoc signed rather than notarized, so macOS treats each new build as a different app and would re-prompt for Keychain access after every update. Anyone who can already read that user's files (or run as them) can read the token, so treat it like the user's other files. **Sign out** deletes it, and an admin can revoke it from Entra ID (*Enterprise applications → the app → Sessions*, or revoke the user's sign-in sessions).
+- **What access it asks for.** The app requests delegated `Sites.ReadWrite.All` and `User.Read`. "Delegated" means it can only do what the signed-in person can already do in SharePoint, never more. It only ever reads and writes the one list you configure, but the permission itself isn't limited to that list. If your policy requires narrower access, restrict who can sign in to the app (Entra: *Properties → Assignment required*, then assign only the people who submit requests) and use a dedicated list in a site the submitters can already write to. A `Sites.Selected` option, which limits the app to named sites, isn't supported yet.
+
 ## Checklist
 
 Run through this with a test requester account and a test reviewer account:
