@@ -1,8 +1,43 @@
 //! File I/O and a generic .xlsx writer. The frontend decides the content;
 //! this only lays it out in the style of the reference workbook.
+//!
+//! The frontend never names a file. Every command here shows the system save/open dialog itself and
+//! touches only the file the person picks (and, when asked, opens that same file afterwards), so even
+//! a compromised page can't read or write anything the person didn't choose.
 
 use rust_xlsxwriter::{Color, Format, FormatAlign, FormatBorder, Workbook};
 use serde::Deserialize;
+use std::path::{Path, PathBuf};
+use tauri::AppHandle;
+use tauri_plugin_dialog::{DialogExt, FilePath};
+use tauri_plugin_opener::OpenerExt;
+
+/// The file-type choice in a dialog, e.g. { name: "PDF", extensions: ["pdf"] }.
+#[derive(Deserialize)]
+pub struct Filter {
+    name: String,
+    extensions: Vec<String>,
+}
+
+/// Shows a save (`default_name` given) or open dialog and returns what the person picked, if anything.
+async fn pick(app: &AppHandle, default_name: Option<&str>, filter: &Filter) -> Option<PathBuf> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let exts: Vec<&str> = filter.extensions.iter().map(String::as_str).collect();
+    let dialog = app.dialog().file().add_filter(&filter.name, &exts);
+    let done = move |p: Option<FilePath>| {
+        let _ = tx.send(p.and_then(|p| p.into_path().ok()));
+    };
+    match default_name {
+        Some(name) => dialog.set_file_name(name).save_file(done),
+        None => dialog.pick_file(done),
+    }
+    rx.await.ok().flatten()
+}
+
+/// Opens a file the person just saved in its default app. Failure isn't an error: the file is saved.
+fn open_saved(app: &AppHandle, path: &Path) {
+    let _ = app.opener().open_path(path.to_string_lossy(), None::<&str>);
+}
 
 #[derive(Deserialize)]
 pub struct Section {
@@ -25,8 +60,8 @@ pub struct Sheet {
     sections: Vec<Section>,
 }
 
-#[tauri::command]
-pub fn export_xlsx(path: String, sheets: Vec<Sheet>) -> Result<(), String> {
+/// Lays the sheets out and saves them to `path`.
+fn write_xlsx(path: &Path, sheets: Vec<Sheet>) -> Result<(), String> {
     let navy = Color::RGB(0x1F3A5F);
     let title = Format::new().set_bold().set_font_size(16);
     let subtitle = Format::new().set_italic().set_font_color(Color::RGB(0x595959));
@@ -88,25 +123,46 @@ pub fn export_xlsx(path: String, sheets: Vec<Sheet>) -> Result<(), String> {
             r += 1;
         }
     }
-    wb.save(&path).map_err(|e| e.to_string())
+    wb.save(path).map_err(|e| e.to_string())
 }
 
+/// Save dialog, then the workbook. Returns whether a file was saved (false = the person cancelled).
 #[tauri::command]
-pub fn write_text_file(path: String, contents: String) -> Result<(), String> {
-    std::fs::write(&path, contents).map_err(|e| e.to_string())
+pub async fn save_xlsx(app: AppHandle, default_name: String, filter: Filter, sheets: Vec<Sheet>, open_after: bool) -> Result<bool, String> {
+    let Some(path) = pick(&app, Some(&default_name), &filter).await else { return Ok(false) };
+    write_xlsx(&path, sheets)?;
+    if open_after {
+        open_saved(&app, &path);
+    }
+    Ok(true)
 }
 
-/// Writes base64-encoded bytes (the PDF report) to disk.
+/// Save dialog, then the text. Returns whether a file was saved.
 #[tauri::command]
-pub fn write_binary_file(path: String, base64: String) -> Result<(), String> {
+pub async fn save_text_file(app: AppHandle, default_name: String, filter: Filter, contents: String) -> Result<bool, String> {
+    let Some(path) = pick(&app, Some(&default_name), &filter).await else { return Ok(false) };
+    std::fs::write(&path, contents).map_err(|e| e.to_string())?;
+    Ok(true)
+}
+
+/// Save dialog, then base64-encoded bytes (the PDF report). Returns whether a file was saved.
+#[tauri::command]
+pub async fn save_binary_file(app: AppHandle, default_name: String, filter: Filter, base64: String, open_after: bool) -> Result<bool, String> {
     use base64::Engine;
     let bytes = base64::engine::general_purpose::STANDARD.decode(base64.trim()).map_err(|e| e.to_string())?;
-    std::fs::write(&path, bytes).map_err(|e| e.to_string())
+    let Some(path) = pick(&app, Some(&default_name), &filter).await else { return Ok(false) };
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    if open_after {
+        open_saved(&app, &path);
+    }
+    Ok(true)
 }
 
+/// Open dialog, then the chosen file's text. None = the person cancelled.
 #[tauri::command]
-pub fn read_text_file(path: String) -> Result<String, String> {
-    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+pub async fn open_text_file(app: AppHandle, filter: Filter) -> Result<Option<String>, String> {
+    let Some(path) = pick(&app, None, &filter).await else { return Ok(None) };
+    std::fs::read_to_string(&path).map(Some).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -129,7 +185,7 @@ mod tests {
         }]))
         .unwrap();
         let path = std::env::temp_dir().join("assessit-export-test.xlsx");
-        export_xlsx(path.to_string_lossy().into_owned(), sheets).unwrap();
+        write_xlsx(&path, sheets).unwrap();
         assert!(std::fs::metadata(&path).unwrap().len() > 1000);
     }
 }

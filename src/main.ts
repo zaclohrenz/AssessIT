@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { ask, open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
-import { openPath, openUrl } from "@tauri-apps/plugin-opener";
+import { ask } from "@tauri-apps/plugin-dialog";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { bandFor, compute, draftMessage, formatDate, isIgnored, pathToApproval, summary, type Result } from "./engine";
 import { chooseConfig, sanitizeConfig, type ConfigChoice } from "./orgconfig";
 import { reportPdf } from "./pdf";
@@ -216,7 +216,7 @@ function renderNav() {
     item("settings", "Settings", st.settings) +
     `<div class="navsep">Tools</div>` +
     item("vuln", "Vulnerability triage", vulnBubble()) +
-    `<div class="spacer"></div><div class="foot">${esc(policy().name)} v${policy().version}<br>${esc(configLabel())}
+    `<div class="spacer"></div><div class="foot">${esc(policy().name)} v${esc(policy().version)}<br>${esc(configLabel())}
       <div class="verrow"><button class="verlink" data-url="${releaseUrl(APP_VERSION)}" title="Release notes for v${APP_VERSION} on GitHub">v${APP_VERSION} ↗</button>${updateBadge()}</div></div>`;
 }
 
@@ -517,7 +517,7 @@ function badges(f: Factor): string {
   if (ans?.origin === "ai") {
     b += `<span class="badge ai" title="Proposed by AI research. Check the notes and sources.">AI · ${esc(ans.confidence ?? "?")} confidence</span>`;
     if (ans.needsConfirmation) b += `<span class="badge confirm" title="Only your organization can confirm this.">Confirm internally</span>`;
-    b += ` <button class="btn small" data-accept="${f.id}">Mark reviewed</button>`;
+    b += ` <button class="btn small" data-accept="${esc(f.id)}">Mark reviewed</button>`;
   } else if (ans && (ans.response || ans.notes) && ans.confidence) {
     b += `<span class="badge edited">Reviewed</span>`;
   }
@@ -528,26 +528,26 @@ function qRow(f: Factor): string {
   const ans = S.a.answers[f.id];
   const resp = ans?.response ?? "";
   if (isIgnored(f, ans))
-    return `<div class="q ignored" id="q-${f.id}">
+    return `<div class="q ignored" id="q-${esc(f.id)}">
     <div class="id">${esc(f.id)}</div>
-    <div><span class="text">${esc(f.question)}</span><span id="badges-${f.id}"><span class="badge edited">Ignored</span></span>
+    <div><span class="text">${esc(f.question)}</span><span id="badges-${esc(f.id)}"><span class="badge edited">Ignored</span></span>
       <div class="guide">Not scored, not required. Your report will say you ignored it.</div>
       ${whyItMatters(f)}</div>
-    <div class="body"><div class="opts"><button class="opt on" data-ignore="${f.id}" data-val="" title="Score this question again">Ignored · include it again</button></div></div></div>`;
+    <div class="body"><div class="opts"><button class="opt on" data-ignore="${esc(f.id)}" data-val="" title="Score this question again">Ignored · include it again</button></div></div></div>`;
   const opts = f.options
-    .map((o) => `<button class="opt ${resp === o.label ? "on" : ""}" data-opt="${f.id}" data-val="${esc(o.label)}" title="${esc(fmtPts(o.points, f.section))}">${esc(o.label)}</button>`)
+    .map((o) => `<button class="opt ${resp === o.label ? "on" : ""}" data-opt="${esc(f.id)}" data-val="${esc(o.label)}" title="${esc(fmtPts(o.points, f.section))}">${esc(o.label)}</button>`)
     .join("");
-  return `<div class="q ${f.required && !resp ? "unanswered-req" : ""}" id="q-${f.id}">
+  return `<div class="q ${f.required && !resp ? "unanswered-req" : ""}" id="q-${esc(f.id)}">
     <div class="id">${esc(f.id)}</div>
-    <div><span class="text">${esc(f.question)}</span><span id="badges-${f.id}">${badges(f)}</span>
+    <div><span class="text">${esc(f.question)}</span><span id="badges-${esc(f.id)}">${badges(f)}</span>
       ${f.guidance ? `<div class="guide">${esc(f.guidance)}</div>` : ""}
       ${basisChips(f) ? `<div class="refs">${basisChips(f)}</div>` : ""}
       ${whyItMatters(f)}</div>
     <div class="body">
-      <div class="opts">${opts}${f.ignorable ? `<button class="opt" data-ignore="${f.id}" data-val="1" title="Skip this question. It won't be scored or required.">Ignore</button>` : ""}${resp ? `<button class="btn small" data-opt="${f.id}" data-val="">Clear</button>` : ""}</div>
+      <div class="opts">${opts}${f.ignorable ? `<button class="opt" data-ignore="${esc(f.id)}" data-val="1" title="Skip this question. It won't be scored or required.">Ignore</button>` : ""}${resp ? `<button class="btn small" data-opt="${esc(f.id)}" data-val="">Clear</button>` : ""}</div>
       <div class="ev">
-        <textarea placeholder="Notes / evidence" data-ans="${f.id}" data-field="notes">${esc(ans?.notes ?? "")}</textarea>
-        <textarea placeholder="Source URL(s)" data-ans="${f.id}" data-field="sources">${esc(ans?.sources ?? "")}</textarea>
+        <textarea placeholder="Notes / evidence" data-ans="${esc(f.id)}" data-field="notes">${esc(ans?.notes ?? "")}</textarea>
+        <textarea placeholder="Source URL(s)" data-ans="${esc(f.id)}" data-field="sources">${esc(ans?.sources ?? "")}</textarea>
       </div>
     </div></div>`;
 }
@@ -774,7 +774,7 @@ function settingsPage(): string {
     </div>
     <div class="card"><h2>Scoring policy</h2>
       <p class="muted" style="margin-top:0">Risk Score = Likelihood × Impact × Preference multiplier × (1 − Mitigation credit). Points, bands and hard stops come from the policy file. Users never do the math.</p>
-      <div class="row"><b>${esc(p.name)} v${p.version}</b><span class="muted">${policySourceLabel()}</span>${lockNote("policy")}<div style="flex:1"></div>
+      <div class="row"><b>${esc(p.name)} v${esc(p.version)}</b><span class="muted">${policySourceLabel()}</span>${lockNote("policy")}<div style="flex:1"></div>
         ${isLocked("policy") ? "" : `<button class="btn small" data-action="policy-import">Import policy…</button>`}
         <button class="btn small" data-action="policy-export">Export policy…</button>
         ${S.user.policy && !isLocked("policy") ? `<button class="btn small" data-action="policy-reset">Use ${S.remote.config?.policy ? "organization" : "default"} policy</button>` : ""}</div>
@@ -1118,17 +1118,24 @@ async function vulnLookup() {
 const slug = (s: string) => s.replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "assessment";
 const baseName = () => slug([S.a.details.vendor, S.a.details.product].filter(Boolean).join(" ") || "assessment");
 
+// The frontend never names a file: Rust shows the save/open dialog and touches only what the person picks
+// (src-tauri/src/export.rs). Each helper resolves false/null when they cancel.
+const fileKind = (name: string, ...extensions: string[]) => ({ name, extensions });
+const JSON_ASSESSMENT = fileKind("AssessIT assessment", "json");
+const saveJson = (defaultName: string, kind: ReturnType<typeof fileKind>, data: unknown) =>
+  invoke<boolean>("save_text_file", { defaultName, filter: kind, contents: JSON.stringify(data, null, 2) });
+const openJson = async (kind: ReturnType<typeof fileKind>): Promise<unknown> => {
+  const text = await invoke<string | null>("open_text_file", { filter: kind });
+  return text === null ? null : JSON.parse(text);
+};
+
 async function saveFile() {
-  const path = await saveDialog({ defaultPath: `${baseName()}.assessit.json`, filters: [{ name: "AssessIT assessment", extensions: ["json"] }] });
-  if (!path) return;
-  await invoke("write_text_file", { path, contents: JSON.stringify({ assessit: 1, policy: policy().name, ...S.a }, null, 2) });
-  toast("Saved.");
+  if (await saveJson(`${baseName()}.assessit.json`, JSON_ASSESSMENT, { assessit: 1, policy: policy().name, ...S.a })) toast("Saved.");
 }
 
 async function openFile() {
-  const path = await openDialog({ multiple: false, filters: [{ name: "AssessIT assessment", extensions: ["json"] }] });
-  if (!path || Array.isArray(path)) return;
-  const data = JSON.parse(await invoke<string>("read_text_file", { path }));
+  const data = (await openJson(JSON_ASSESSMENT)) as any;
+  if (!data) return;
   if (!data.details || !data.answers) throw new Error("That file isn't an AssessIT assessment.");
   S.a = migrateAssessment({ details: { ...blankAssessment().details, ...data.details }, answers: data.answers, submitted: data.submitted });
   applyRules();
@@ -1148,21 +1155,15 @@ async function newAssessment() {
 }
 
 async function exportXlsx() {
-  const path = await saveDialog({ defaultPath: `${baseName()}-risk-assessment.xlsx`, filters: [{ name: "Excel", extensions: ["xlsx"] }] });
-  if (!path) return;
-  await invoke("export_xlsx", { path, sheets: xlsxSheets(policy(), S.a, S.settings.org) });
-  await openPath(path).catch(() => toast("Exported."));
+  await invoke("save_xlsx", { defaultName: `${baseName()}-risk-assessment.xlsx`, filter: fileKind("Excel", "xlsx"), sheets: xlsxSheets(policy(), S.a, S.settings.org), openAfter: true });
 }
 
 async function exportPdf() {
-  const path = await saveDialog({ defaultPath: `${baseName()}-risk-report.pdf`, filters: [{ name: "PDF", extensions: ["pdf"] }] });
-  if (!path) return;
   // Loaded on demand: the PDF engine and its fonts are ~2 MB.
   const [{ default: pdfMake }, { default: vfs }] = await Promise.all([import("pdfmake/build/pdfmake"), import("pdfmake/build/vfs_fonts")]);
   pdfMake.addVirtualFileSystem(vfs);
   const base64 = await pdfMake.createPdf(reportPdf(policy(), S.a, S.settings.org)).getBase64();
-  await invoke("write_binary_file", { path, base64 });
-  await openPath(path).catch(() => toast("PDF saved."));
+  await invoke("save_binary_file", { defaultName: `${baseName()}-risk-report.pdf`, filter: fileKind("PDF", "pdf"), base64, openAfter: true });
 }
 
 // ---------------- Submit ----------------
@@ -1375,17 +1376,16 @@ const actions: Record<string, () => unknown> = {
     renderPage();
   },
   "policy-import": async () => {
-    const path = await openDialog({ multiple: false, filters: [{ name: "Policy", extensions: ["json"] }] });
-    if (!path || Array.isArray(path)) return;
-    S.user.policy = validatePolicy(JSON.parse(await invoke<string>("read_text_file", { path })));
+    const file = await openJson(fileKind("Policy", "json"));
+    if (!file) return;
+    S.user.policy = validatePolicy(file);
     saveUserSettings(S.user);
     recomputeSettings();
     render();
     toast(`Loaded policy “${S.user.policy.name}”.`);
   },
   "policy-export": async () => {
-    const path = await saveDialog({ defaultPath: "assessit-policy.json", filters: [{ name: "Policy", extensions: ["json"] }] });
-    if (path) await invoke("write_text_file", { path, contents: JSON.stringify(policy(), null, 2) });
+    await saveJson("assessit-policy.json", fileKind("Policy", "json"), policy());
   },
   "policy-reset": async () => {
     if (!(await ask("Stop using the policy you imported?", { title: "Reset policy" }))) return;
@@ -1395,17 +1395,15 @@ const actions: Record<string, () => unknown> = {
     render();
   },
   "config-export": async () => {
-    const path = await saveDialog({ defaultPath: "assessit-org-config.json", filters: [{ name: "Org config", extensions: ["json"] }] });
-    if (!path) return;
     const out: OrgConfig = { assessitConfig: 1, name: `${S.settings.org.orgName} AssessIT config`, lock: false, ...S.settings, policy: policy() };
-    await invoke("write_text_file", { path, contents: JSON.stringify(out, null, 2) });
+    if (!(await saveJson("assessit-org-config.json", fileKind("Org config", "json"), out))) return;
     toast("Exported. Set \"lock\": true in the file to stop users changing these settings.", 6000);
   },
   "config-import": async () => {
-    const path = await openDialog({ multiple: false, filters: [{ name: "Org config", extensions: ["json"] }] });
-    if (!path || Array.isArray(path)) return;
+    const file = await openJson(fileKind("Org config", "json"));
+    if (!file) return;
     // A local file becomes the user's own settings (a hosted URL is better: it stays up to date).
-    const cfg = sanitizeConfig("user", JSON.parse(await invoke<string>("read_text_file", { path })));
+    const cfg = sanitizeConfig("user", file);
     S.user = { ...S.user, org: cfg.org, submit: cfg.submit, model: cfg.model, ...(cfg.policy ? { policy: cfg.policy } : {}) };
     saveUserSettings(S.user);
     recomputeSettings();
