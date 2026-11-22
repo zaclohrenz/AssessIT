@@ -94,6 +94,11 @@ export interface Assessment {
   answers: Record<string, Answer>;
   /** Set once sent for approval. flagged = sent with open issues ("YOLO"). */
   submitted?: { at: string; method: string; flagged: boolean };
+  /**
+   * The assessor's confirmation that they reviewed the AI-proposed answers and submit them as their own
+   * determination. Needed (and only shown) when some answers came from AI research.
+   */
+  aiAttestation?: { by: string; at: string };
 }
 
 export interface OrgSettings {

@@ -4,8 +4,7 @@
   "lock": true,
   "rules": {
     "allowOverride": false,
-    "allowYolo": false,
-    "allowBulkReview": false
+    "allowYolo": false
   },
   "org": {
     "orgName": "Contoso",

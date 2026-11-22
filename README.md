@@ -69,13 +69,19 @@ Admins can set a managed URL users can't override in `/etc/assessit/config-url`.
 - **Claude Code (automatic).** If you have a Claude subscription, AssessIT runs your own [Claude Code](https://claude.com/product/claude-code) in the background with web search and web fetch only: no file access, no shell, no MCP servers. You can watch each search as it happens. If Claude Code isn't set up, the **Install & sign in** button opens a Terminal window that does it for you.
 - **Any other AI (copy & paste).** Click **Copy prompt**, paste it into ChatGPT, Gemini, Copilot or any chat that can browse the web, then paste the whole reply back. AssessIT extracts the answers and checks every answer against the allowed options.
 
-AI answers stay tagged **AI · confidence** until a person reviews or edits them, and questions only your organization can answer are flagged **Confirm internally**. Answers you typed are never overwritten.
+AI answers stay tagged **AI · confidence** until you edit them, and questions only your organization can answer are flagged **Confirm internally**. Answers you typed are never overwritten.
+
+**You stay accountable for the result.** When any answer came from AI, the report shows a checkbox you must tick before submitting: *I have reviewed the AI's answers and submit this assessment as my own determination.* It's recorded with your name and the date in the PDF, Excel export and submission (and can't be skipped, even where your organization allows submitting with open issues). Assessments with no AI answers don't show it. Tick it only once you've actually looked: the notes and source links under each answer are there for that.
 
 ## How the score works
 
 ```
 Risk Score = Likelihood × Impact × Preference multiplier × (1 − Mitigation credit)
 ```
+
+The report shows the score as a **percentage of the approval limit** (the score where your policy starts denying; 58 in the defaults), so lower is better and 100% is the line. **Green** is under the limit. **Yellow** is over it, but the mitigations your policy still offers could bring it under. **Red** is over it even with every mitigation, or a hard stop was hit.
+
+Not sure about a question? Each shows the **cautious answer** to pick: the one that counts most against approval (Yes for most questions; No for mitigations, since Yes there earns a credit; and the policy's own "Not rated" / "Unknown" where it has one). Missing evidence never makes a tool look safer than it is.
 
 [**SCORING.md**](SCORING.md) explains it in one page, with a worked example and the basis for every question. In short:
 
@@ -111,7 +117,7 @@ Without `lock`, everything here is a pre-filled default. Users get your approval
   "assessitConfig": 1,
   "name": "Contoso AssessIT config (managed)",
   "lock": true,
-  "rules": { "allowOverride": false, "allowYolo": false, "allowBulkReview": false },
+  "rules": { "allowOverride": false, "allowYolo": false },
   "org": { "orgName": "Contoso", "reviewTeam": "Contoso IT Risk Review" },
   "submit": { "method": "sharepoint", "tenant": "contoso.onmicrosoft.com", "clientId": "…your Entra app ID…",
               "siteUrl": "https://contoso.sharepoint.com/sites/ITRisk", "listName": "Software Risk Assessments" },
@@ -124,8 +130,7 @@ Without `lock`, everything here is a pre-filled default. Users get your approval
 | `"lock": true` | Users can't change anything the file sets. It also **pins the scoring policy** (yours, or the default), so nobody can import a more lenient one. Set at install time, it also pins the config URL: see "Changing a locked URL" below. |
 | `"lock": ["submit", "policy"]` | Lock only some parts. Any of `org`, `submit`, `model`, `policy`. |
 | `rules.allowOverride: false` | Hides **Decision override**. The calculated decision is what gets submitted; approvers can still accept risk when they decide. |
-| `rules.allowYolo: false` | No submitting with open issues: every required question answered and every AI answer reviewed first. |
-| `rules.allowBulkReview: false` | Removes **Mark all AI answers reviewed**, so each AI answer gets looked at. |
+| `rules.allowYolo: false` | No submitting with open issues: every required question answered and the request details filled in first. |
 | `policy` / `policyUrl` | Your own scoring policy, embedded or hosted. Leave both out to use the public defaults. |
 
 **Always on, no config needed:** when someone changes an answer that AI research proposed (for example a breach finding from Yes to No), the submission, the PDF and the `ChangedFromAI` SharePoint column show the AI's original answer next to theirs. Talking a score down is visible to approvers.

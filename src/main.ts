@@ -2,14 +2,15 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { bandFor, compute, draftMessage, formatDate, isIgnored, pathToApproval, summary, type Result } from "./engine";
+import { bandFor, cautiousChoice, compute, draftMessage, formatDate, isIgnored, pathToApproval, summary, type Result } from "./engine";
 import { chooseConfig, sanitizeConfig, type ConfigChoice } from "./orgconfig";
 import { reportPdf } from "./pdf";
-import { APP_VERSION, changedFromAi, STATUSES, decisionTone, fmtPts, listFields, REQUIRED_DETAILS, reviewFlags, SHAREPOINT_COLUMNS, webhookPayload, xlsxSheets } from "./report";
+import { APP_VERSION, changedFromAi, needsAiAttestation, STATUSES, decisionTone, fmtPts, listFields, REQUIRED_DETAILS, reviewFlags, scoreCaption, scoreHeadline, SHAREPOINT_COLUMNS, webhookPayload, xlsxSheets, ZONE_LABEL } from "./report";
+import { extractUrls, linkLabel } from "./links";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { percent, releaseUrl, type UpdateState } from "./update";
-import { navStatus, sectionStatus, unreviewedAi as countUnreviewedAi, type Bubble, type BubbleKind } from "./status";
+import { aiAnswerCount, navStatus, sectionStatus, type Bubble, type BubbleKind } from "./status";
 import { manualPrompt, mergeResearch, parseManualResponse, researchPrompt, researchSchema, type ResearchOutput } from "./research";
 import {
   activePolicy, blankAssessment, effectiveSettings, loadCurrent, migrateAssessment, loadUserSettings, lockedPaths,
@@ -313,7 +314,7 @@ function refreshDerived() {
   renderNav();
   if (S.tab === "questions") {
     const c = $("#ai-count");
-    if (c) c.textContent = String(unreviewedAi());
+    if (c) c.textContent = String(aiCount());
     for (const sec of ["Likelihood", "Impact", "Preference", "Mitigation"] as Section[]) {
       const el = $(`#sec-total-${sec}`);
       if (el) el.innerHTML = sectionTotal(sec);
@@ -335,7 +336,7 @@ const DETAIL_FIELDS: [keyof Details, string, string, boolean?][] = [
   ["requestingTeam", "Requesting team", "Used in the draft message."],
   ["businessOwner", "Business owner", "Person accountable for the tool after approval."],
   ["assessmentDate", "Assessment date", "Drives the re-review date."],
-  ["assessors", "Assessor(s)", ""],
+  ["assessors", "Your name", "Printed on the report and sent with your submission. If more than one person is doing the evaluation, list everyone."],
   ["intendedUse", "Intended use", "What it will do and what data it will touch. Claude uses this to judge the internal questions.", true],
 ];
 
@@ -488,7 +489,7 @@ function visible(f: Factor): boolean {
 
 function questionsPage(): string {
   const p = policy();
-  const aiCount = unreviewedAi();
+  const aiN = aiCount();
   const sections = SECTIONS
     .map((sec) => {
       // Ignorable (pure value-choice) questions go last in their section so they read as a group.
@@ -501,15 +502,14 @@ function questionsPage(): string {
     .join("");
   const chip = (f: Filter, label: string) => `<button class="chip ${S.filter === f ? "on" : ""}" data-filter="${f}">${label}</button>`;
   return `
-    <div class="section-head"><div><h1>Questionnaire</h1><p class="lede">Pick an answer for every required question. Add notes and sources as evidence; the report quotes them.</p></div></div>
-    <div class="row"><div class="filters">${chip("all", "All")}${chip("review", `From AI, not reviewed (<span id="ai-count">${aiCount}</span>)`)}${chip("unanswered", "Unanswered")}</div>
-      <div style="flex:1"></div>${aiCount && rules().allowBulkReview ? `<button class="btn small" data-action="accept-all">Mark all AI answers reviewed</button>` : ""}</div>
+    <div class="section-head"><div><h1>Questionnaire</h1><p class="lede">Pick an answer for every required question. Add notes and sources as evidence; the report quotes them. Not sure about one? Pick the cautious answer shown under it: unknowns count against approval, so a tool never scores better than the evidence supports.</p></div></div>
+    <div class="row"><div class="filters">${chip("all", "All")}${chip("review", `From AI (<span id="ai-count">${aiN}</span>)`)}${chip("unanswered", "Unanswered")}</div></div>
     ${sections || `<div class="card muted">Nothing matches this filter.</div>`}
     <div class="row"><button class="btn primary" data-tab="report">See the report →</button></div>`;
 }
 
-/** AI answers nobody has reviewed yet (ignores AI rows that came back empty). */
-const unreviewedAi = () => countUnreviewedAi(S.a);
+/** Answers still coming from AI research (ignores AI rows that came back empty). */
+const aiCount = () => aiAnswerCount(S.a);
 
 function badges(f: Factor): string {
   const ans = S.a.answers[f.id];
@@ -517,9 +517,8 @@ function badges(f: Factor): string {
   if (ans?.origin === "ai") {
     b += `<span class="badge ai" title="Proposed by AI research. Check the notes and sources.">AI · ${esc(ans.confidence ?? "?")} confidence</span>`;
     if (ans.needsConfirmation) b += `<span class="badge confirm" title="Only your organization can confirm this.">Confirm internally</span>`;
-    b += ` <button class="btn small" data-accept="${esc(f.id)}">Mark reviewed</button>`;
   } else if (ans && (ans.response || ans.notes) && ans.confidence) {
-    b += `<span class="badge edited">Reviewed</span>`;
+    b += `<span class="badge edited">Edited by you</span>`;
   }
   return b;
 }
@@ -541,6 +540,7 @@ function qRow(f: Factor): string {
     <div class="id">${esc(f.id)}</div>
     <div><span class="text">${esc(f.question)}</span><span id="badges-${esc(f.id)}">${badges(f)}</span>
       ${f.guidance ? `<div class="guide">${esc(f.guidance)}</div>` : ""}
+      ${unsureHint(f)}
       ${basisChips(f) ? `<div class="refs">${basisChips(f)}</div>` : ""}
       ${whyItMatters(f)}</div>
     <div class="body">
@@ -548,8 +548,24 @@ function qRow(f: Factor): string {
       <div class="ev">
         <textarea placeholder="Notes / evidence" data-ans="${esc(f.id)}" data-field="notes">${esc(ans?.notes ?? "")}</textarea>
         <textarea placeholder="Source URL(s)" data-ans="${esc(f.id)}" data-field="sources">${esc(ans?.sources ?? "")}</textarea>
+        <div class="srclinks" id="src-${esc(f.id)}">${sourceLinks(ans?.sources ?? "")}</div>
       </div>
     </div></div>`;
+}
+
+/** "Not sure?" line under a question: the answer that counts most against approval, and why. */
+function unsureHint(f: Factor): string {
+  const pick = cautiousChoice(f);
+  if (!pick) return "";
+  const why = f.section === "Mitigation" ? "credit is only given for controls you can confirm" : "it's the cautious answer, and counts against approval until someone confirms otherwise";
+  return `<div class="unsure">Not sure? Choose <b>${esc(pick)}</b>: ${why}.</div>`;
+}
+
+/** Clickable links for the https URLs typed or found in a "Source URL(s)" box (opened in the browser). */
+function sourceLinks(text: string): string {
+  return extractUrls(text)
+    .map((u) => `<button class="srclink" data-url="${esc(u)}" title="${esc(u)}">${esc(linkLabel(u))} ↗</button>`)
+    .join("");
 }
 
 const refLabel = (r: Reference) => `${r.source}${r.id ? ` ${r.id}` : ""}`;
@@ -621,19 +637,35 @@ function reportPage(): string {
     <div class="card" id="send-card">${sendCard()}</div>`;
 }
 
+/** A bar from 0% to past the approval limit: green inside it, yellow where mitigations could still help, red beyond. */
+function meterHtml(r: Result): string {
+  const m = r.meter;
+  if (!m) return "";
+  const max = Math.max(m.yellowUntilPercent * 1.25, m.percent * 1.1, 130);
+  const w = (from: number, to: number) => `${(((to - from) / max) * 100).toFixed(2)}%`;
+  const at = `${Math.min(100, (m.percent / max) * 100).toFixed(2)}%`;
+  return `<div class="meter" role="img" aria-label="Risk score is ${m.percent}% of the approval limit. ${esc(ZONE_LABEL[m.zone])}.">
+    <div class="track"><span class="seg green" style="width:${w(0, 100)}"></span><span class="seg yellow" style="width:${w(100, m.yellowUntilPercent)}"></span><span class="seg red" style="flex:1"></span>
+      <span class="mark z-${m.zone}" style="left:${at}"></span></div>
+    <div class="meter-note z-${m.zone}"><b>${m.percent}%</b> of the approval limit · ${esc(ZONE_LABEL[m.zone])}</div></div>`;
+}
+
 function sendCard(): string {
   const flags = reviewFlags(result(), S.a);
   const yolo = flags.length > 0;
-  const blocked = yolo && !rules().allowYolo;
+  const needAttest = needsAiAttestation(S.a);
+  const blocked = (yolo && !rules().allowYolo) || needAttest;
   const sent = S.a.submitted;
   const changed = changedFromAi(S.a);
+  const aiN = aiCount();
   return `<h2>Send it</h2>
     <p class="muted" style="margin-top:0">${submitBlurb()}</p>
-    ${yolo ? `<div class="status warn" style="margin-bottom:12px"><span class="dot"></span><div>${blocked ? "🔒 Your organization requires these to be resolved before submitting" : "Not quite ready"}: ${esc(flags.join(" "))}</div></div>` : ""}
+    ${yolo ? `<div class="status warn" style="margin-bottom:12px"><span class="dot"></span><div>${blocked && !needAttest ? "🔒 Your organization requires these to be resolved before submitting" : "Not quite ready"}: ${esc(flags.join(" "))}</div></div>` : ""}
     ${changed.length ? `<p class="muted">You changed ${changed.length} answer${changed.length === 1 ? "" : "s"} from what AI research found (${esc(changed.map((c) => c.id).join(", "))}). Approvers will see the AI's original answer next to yours.</p>` : ""}
+    ${aiN ? `<label class="attest ${S.a.aiAttestation ? "on" : ""}"><input type="checkbox" data-action="toggle-attest" ${S.a.aiAttestation ? "checked" : ""}><span>I have reviewed the AI's answers (${aiN}) and submit this assessment as my own determination.</span></label>` : ""}
     ${sent ? `<div class="status ok" style="margin-bottom:12px"><span class="dot"></span><div>Sent for approval ${esc(new Date(sent.at).toLocaleString())}${sent.flagged ? " (YOLO, with open issues flagged)" : ""}.</div></div>` : ""}
     <div class="row">
-      <button class="btn go ${yolo && !blocked ? "yolo" : ""}" data-action="submit" ${S.submitting || blocked ? "disabled" : ""}>${S.submitting ? "Sending…" : blocked ? "Submit for Approval" : yolo ? "Submit YOLO 🤠" : sent ? "Submit again" : "Submit for Approval"}</button>
+      <button class="btn go ${yolo && !blocked ? "yolo" : ""}" data-action="submit" ${S.submitting || blocked ? "disabled" : ""} ${needAttest ? 'title="Confirm you reviewed the AI\'s answers first"' : ""}>${S.submitting ? "Sending…" : blocked ? "Submit for Approval" : yolo ? "Submit YOLO 🤠" : sent ? "Submit again" : "Submit for Approval"}</button>
       <button class="btn go" data-action="export-pdf">Export to PDF</button>
       <span style="flex:1"></span>
       <button class="btn small" data-action="export-xlsx">Excel…</button>
@@ -675,7 +707,7 @@ function reportBody(): string {
   const p = policy();
   const r = result();
   const tone = decisionTone(r.finalDecision);
-  const tile = (k: string, v: string, s: string) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+  const tile = (k: string, v: string, s: string, cls = "") => `<div class="tile ${cls}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
   const drivers = r.drivers.length
     ? `<table><tr><th>#</th><th>Factor</th><th>Section</th><th>Answer</th><th>Score reduction</th><th>Evidence</th></tr>${r.drivers
         .map((x) => `<tr><td>${x.rank}</td><td>${esc(x.factor.factor)}</td><td>${x.factor.section}</td><td>${esc(x.response)}</td><td class="num">${x.scoreReduction.toFixed(1)}</td><td>${esc(x.evidence)}</td></tr>`)
@@ -686,12 +718,13 @@ function reportBody(): string {
         .map((x) => `<tr><td>${esc(x.factor.factor)}</td><td>${fmtPts(x.points, "Mitigation")}</td><td class="num">${x.scoreReduction.toFixed(1)}</td><td>${esc(x.evidence)}</td></tr>`)
         .join("")}</table>${r.mitigationRaw > p.maxMitigationCredit ? `<p class="muted">Total credit capped at ${Math.round(p.maxMitigationCredit * 100)}% (raw ${Math.round(r.mitigationRaw * 100)}%).</p>` : ""}`
     : `<p class="muted">None credited.</p>`;
-  const aiLeft = unreviewedAi();
+  const aiN = aiCount();
   return `
     <div class="banner ${tone}"><div class="d">${esc(r.finalDecision.toUpperCase())}${r.overridden ? " (OVERRIDE)" : ""}</div><div>${esc(summary(r, S.a))}</div></div>
-    ${aiLeft ? `<div class="status"><span class="dot"></span><div style="flex:1">${aiLeft} answer${aiLeft === 1 ? "" : "s"} came from AI research and haven't been reviewed.</div><button class="btn small" data-action="review-ai">Review them</button></div>` : ""}
+    ${aiN ? `<div class="status"><span class="dot"></span><div style="flex:1">${aiN} answer${aiN === 1 ? "" : "s"} came from AI research. Look ${aiN === 1 ? "it" : "them"} over, then confirm below that you did before you submit.</div><button class="btn small" data-action="review-ai">Review ${aiN === 1 ? "it" : "them"}</button></div>` : ""}
+    ${meterHtml(r)}
     <div class="tiles">
-      ${tile("Risk score", r.finalDecision === "Incomplete" ? "—" : r.score.toFixed(1), `of ${r.maxScore.toFixed(0)} max · ${r.unmitigated.toFixed(1)} before mitigation`)}
+      ${tile("Risk score", scoreHeadline(r), esc(scoreCaption(r)), r.meter ? `z-${r.meter.zone}` : "")}
       ${tile("Risk band", esc(r.band.name), `Band policy: ${esc(r.band.decision)}`)}
       ${tile("Likelihood", String(r.likelihood), `${esc(r.likelihoodBand)} (max ${r.likelihoodMax})`)}
       ${tile("Impact", String(r.impact), `${esc(r.impactBand)} (max ${r.impactMax})`)}
@@ -842,7 +875,6 @@ function configCard(): string {
   const ruleNotes = [
     !rl.allowOverride && "decision overrides are off",
     !rl.allowYolo && "submitting with open issues is off",
-    !rl.allowBulkReview && "AI answers must be reviewed one by one",
   ].filter(Boolean);
   return `<h2>Organization config</h2>
     <div class="kv" style="margin-bottom:10px"><b>Source</b><span>${esc(KIND_LABEL[c.kind])}${R.config?.name ? ` · ${esc(R.config.name)}` : ""}</span>
@@ -1218,6 +1250,7 @@ async function submit() {
     render();
     return toast("Choose an approval destination first, or use Export to PDF.");
   }
+  if (needsAiAttestation(S.a)) return toast("Confirm you've reviewed the AI's answers before submitting.", 6000);
   if (flags.length && !rules().allowYolo) return toast("Your organization requires every open issue to be resolved before submitting.", 6000);
   if (flags.length) {
     const ok = await confirmModal(
@@ -1313,12 +1346,12 @@ const actions: Record<string, () => unknown> = {
     await invoke("open_claude_setup");
     toast("Finish signing in from the Terminal window, then click “Check again”.", 6000);
   },
-  "accept-all": () => {
-    if (!rules().allowBulkReview) return;
-    for (const ans of Object.values(S.a.answers)) if (ans.origin === "ai") Object.assign(ans, { origin: "user", needsConfirmation: false });
+  "toggle-attest": () => {
+    if (S.a.aiAttestation) delete S.a.aiAttestation;
+    else S.a.aiAttestation = { by: S.a.details.assessors.trim(), at: new Date().toISOString() };
     persist();
     renderPage();
-    refreshDerived();
+    renderNav();
   },
   "review-ai": () => {
     S.tab = "questions";
@@ -1413,7 +1446,7 @@ const actions: Record<string, () => unknown> = {
 };
 
 function onClick(e: MouseEvent) {
-  const el = (e.target as HTMLElement).closest<HTMLElement>("[data-tab],[data-action],[data-opt],[data-ignore],[data-vopt],[data-filter],[data-accept],[data-url],[data-section]");
+  const el = (e.target as HTMLElement).closest<HTMLElement>("[data-tab],[data-action],[data-opt],[data-ignore],[data-vopt],[data-filter],[data-url],[data-section]");
   if (!el) return;
   const ds = el.dataset;
   if (ds.vopt) {
@@ -1457,11 +1490,6 @@ function onClick(e: MouseEvent) {
     persist();
     rerenderRow(id);
     refreshDerived();
-  } else if (ds.accept) {
-    touch(ds.accept);
-    persist();
-    if (S.filter === "review") $(`#q-${ds.accept}`)?.remove();
-    refreshDerived();
   } else if (ds.action) {
     Promise.resolve(actions[ds.action]?.()).catch((err) => toast(errText(err), 8000));
   }
@@ -1482,6 +1510,10 @@ function onInput(e: Event) {
   } else if (ds.ans && ds.field) {
     touch(ds.ans);
     (answer(ds.ans) as unknown as Record<string, string>)[ds.field] = el.value;
+    if (ds.field === "sources") {
+      const box = $(`#src-${ds.ans}`);
+      if (box) box.innerHTML = sourceLinks(el.value);
+    }
     persist();
     refreshDerived();
   } else if (ds.setting) {

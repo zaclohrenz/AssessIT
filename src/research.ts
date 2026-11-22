@@ -178,5 +178,7 @@ export function mergeResearch(policy: Policy, a: Assessment, out: ResearchOutput
     filled++;
   }
   if (out.resources_consulted && !a.details.resources) a.details.resources = out.resources_consulted;
+  // New AI answers are new things to review: an earlier "I reviewed them" no longer covers them.
+  if (filled) delete a.aiAttestation;
   return { filled, skipped };
 }

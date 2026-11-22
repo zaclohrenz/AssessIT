@@ -38,11 +38,9 @@ export interface OrgRules {
   allowOverride: boolean;
   /** false = can't submit with open issues ("Submit YOLO") */
   allowYolo: boolean;
-  /** false = no one-click "Mark all AI answers reviewed"; each answer is reviewed on its own */
-  allowBulkReview: boolean;
 }
 
-export const DEFAULT_RULES: OrgRules = { allowOverride: true, allowYolo: true, allowBulkReview: true };
+export const DEFAULT_RULES: OrgRules = { allowOverride: true, allowYolo: true };
 
 /** An org config file: any subset of Settings, plus a few distribution options. */
 export interface OrgConfig {
