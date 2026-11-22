@@ -71,7 +71,7 @@ Admins can set a managed URL users can't override in `/etc/assessit/config-url`.
 
 AI answers stay tagged **AI · confidence** until you edit them, and questions only your organization can answer are flagged **Confirm internally**. Answers you typed are never overwritten.
 
-**You stay accountable for the result.** When any answer came from AI, the report shows a checkbox you must tick before submitting: *I have reviewed the AI's answers and submit this assessment as my own determination.* It's recorded with your name and the date in the PDF, Excel export and submission (and can't be skipped, even where your organization allows submitting with open issues). Assessments with no AI answers don't show it. Tick it only once you've actually looked: the notes and source links under each answer are there for that.
+**You're the one vouching for the result.** When any answer came from AI, the report reminds you to look the answers over and offers a short tick-box, *I agree with the AI's research*. It never blocks submitting. If you tick it, your name and the date go into the PDF, Excel export and submission, so approvers can see you agreed; if not, they're told the box wasn't ticked. Assessments with no AI answers don't show it. The notes and source links under each answer are there for the look-over.
 
 ## How the score works
 

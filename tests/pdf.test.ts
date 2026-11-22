@@ -43,9 +43,9 @@ describe("PDF report", () => {
     const a = structuredClone(example) as Assessment;
     expect(JSON.stringify(reportPdf(policy, a, org).content)).not.toContain("came from AI research");
     a.answers.L2.origin = "ai";
-    expect(JSON.stringify(reportPdf(policy, a, org).content)).toContain("has not confirmed reviewing them");
+    expect(JSON.stringify(reportPdf(policy, a, org).content)).toContain("didn't tick the box");
     a.aiAttestation = { by: "Pat", at: "2026-02-03T10:00:00Z" };
-    expect(JSON.stringify(reportPdf(policy, a, org).content)).toContain("submits them as their own determination (2026-02-03)");
+    expect(JSON.stringify(reportPdf(policy, a, org).content)).toContain("agreed with them (2026-02-03)");
   });
 
   it("shows the AI's original answer when a person changed it", () => {

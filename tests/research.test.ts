@@ -19,7 +19,26 @@ describe("research", () => {
   it("prompt lists every enabled question and marks internal ones", () => {
     const p = researchPrompt(policy, blank().details, "2026-11-20");
     for (const f of policy.factors) expect(p).toContain(`- ${f.id} (`);
-    expect(p).toMatch(/- M1 \(Mitigation\)[^\n]*\n[^\n]*\n\s+INTERNAL/);
+    expect(p).toMatch(/- M1 \(Mitigation\)[^\n]*\n\s+Options:[\s\S]*?\n\s+INTERNAL/);
+  });
+
+  it("spells out what each answer means, so negatively worded questions can't be inverted", () => {
+    const p = researchPrompt(policy, blank().details, "2026-11-20");
+    expect(p).toContain('"Yes" = No specific time limit found');
+    expect(p).toContain('"No" = The contract commits to a specific time limit');
+    expect(p).toMatch(/Yes means the good thing is MISSING/);
+  });
+
+  it("tells the AI that looking and finding nothing is an answer, not a blank", () => {
+    const p = researchPrompt(policy, blank().details, "2026-11-20");
+    expect(p).toMatch(/found no evidence it exists, answer Yes/);
+    expect(p).toMatch(/A search that finds nothing is a No, not a blank/);
+    expect(p).toMatch(/notes say something is missing[^.]*the response must be the option that means missing/);
+  });
+
+  it("asks for the evidence before the answer", () => {
+    const props = Object.keys((researchSchema(policy) as any).properties.answers.items.properties);
+    expect(props.indexOf("notes")).toBeLessThan(props.indexOf("response"));
   });
 
   it("schema restricts ids", () => {

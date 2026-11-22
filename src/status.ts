@@ -1,5 +1,5 @@
 import { compute, isIgnored } from "./engine";
-import { aiAnswerIds, missingDetails, needsAiAttestation, reviewFlags } from "./report";
+import { aiAnswerIds, missingDetails, reviewFlags } from "./report";
 import type { Settings } from "./settings";
 import type { Assessment, Policy, Section } from "./types";
 
@@ -36,7 +36,7 @@ export function navStatus(policy: Policy, a: Assessment, submit: Settings["submi
     ? ["sent", "SENT"]
     : r.finalDecision === "Incomplete" || detailsMissing
       ? ["todo", "TODO"]
-      : reviewFlags(r, a).length || needsAiAttestation(a)
+      : reviewFlags(r, a).length
         ? ["review", "REVIEW"]
         : ["ok", "OK"];
   const settings: Bubble = submitConfigured(submit) ? ["ok", "OK"] : ["todo", "SETUP"];

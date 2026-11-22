@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { cautiousChoice, compute, riskMeter } from "../src/engine";
 import { extractUrls, linkLabel } from "../src/links";
-import { aiAnswerIds, aiAttestationText, answersText, needsAiAttestation, reviewFlags, scoreCaption, scoreHeadline, webhookPayload } from "../src/report";
+import { aiAnswerIds, aiAttestationText, answersText, reviewFlags, scoreCaption, scoreHeadline, webhookPayload } from "../src/report";
 import defaultPolicy from "../src/policy/default-policy.json";
 import example from "./fixtures/example-assessment.json";
 import type { Assessment, Policy } from "../src/types";
@@ -82,39 +82,33 @@ describe("source links", () => {
   });
 });
 
-describe("AI review attestation", () => {
-  it("isn't needed when no answer came from AI", () => {
+describe("AI agreement (a reminder, never a gate)", () => {
+  it("isn't shown or recorded when no answer came from AI", () => {
     const a = fresh();
     expect(aiAnswerIds(a)).toEqual([]);
-    expect(needsAiAttestation(a)).toBe(false);
     expect(aiAttestationText(a)).toBe("");
     expect(webhookPayload(policy, a, org).aiReview).toBeNull();
   });
-  it("is needed while AI answers remain, and stops being once confirmed or once the person edited them", () => {
-    const a = fresh();
-    a.answers.L2.origin = "ai";
-    expect(needsAiAttestation(a)).toBe(true);
-    a.aiAttestation = { by: "Pat", at: "2026-02-03T10:00:00Z" };
-    expect(needsAiAttestation(a)).toBe(false);
-    a.aiAttestation = undefined;
-    a.answers.L2.origin = "user";
-    expect(needsAiAttestation(a)).toBe(false);
-  });
-  it("is no longer a review flag: it has its own gate that YOLO can't skip", () => {
+  it("is not a review flag, so it can't hold up or YOLO-flag a submission", () => {
     const a = fresh();
     a.answers.L2.origin = "ai";
     expect(reviewFlags(compute(policy, a), a).join(" ")).not.toMatch(/AI/);
   });
-  it("is recorded in the report text, the payload and the answers list", () => {
+  it("records whether the assessor agreed, for approvers", () => {
     const a = fresh();
     a.answers.L2.origin = "ai";
-    expect(aiAttestationText(a)).toContain("has not confirmed");
+    expect(aiAttestationText(a)).toContain("didn't tick the box");
+    expect(webhookPayload(policy, a, org).aiReview).toEqual({ answers: ["L2"], attestation: null });
     a.aiAttestation = { by: "Pat", at: "2026-02-03T10:00:00Z" };
     a.details.assessors = "Pat Q.";
-    expect(aiAttestationText(a)).toBe("1 answer came from AI research (L2). Pat Q. reviewed them and submits them as their own determination (2026-02-03).");
-    const p = webhookPayload(policy, a, org);
-    expect(p.aiReview).toEqual({ answers: ["L2"], attestation: a.aiAttestation });
-    expect(answersText(policy, a, compute(policy, a))).toContain("submits them as their own determination");
+    expect(aiAttestationText(a)).toBe("1 answer came from AI research (L2). Pat Q. agreed with them (2026-02-03).");
+    expect(webhookPayload(policy, a, org).aiReview).toEqual({ answers: ["L2"], attestation: a.aiAttestation });
+    expect(answersText(policy, a, compute(policy, a))).toContain("agreed with them");
     expect(answersText(policy, a, compute(policy, a))).toMatch(/L2 .*\[AI\]/);
+  });
+  it("stops being mentioned once the person has edited every AI answer", () => {
+    const a = fresh();
+    a.answers.L2.origin = "user";
+    expect(aiAttestationText(a)).toBe("");
   });
 });

@@ -40,17 +40,12 @@ describe("left-pane status bubbles", () => {
     expect(navStatus(policy, a, hook).questions).toEqual(["todo", "TODO 1"]);
   });
 
-  it("AI answers don't hold up the questionnaire; the report waits for the assessor to confirm them", () => {
+  it("AI answers are a reminder, never a to-do: nothing is held up while some are still the AI's", () => {
     const a = fresh();
     const f = policy.factors.find((x) => x.section === "Impact")!;
     a.answers[f.id].origin = "ai";
     expect(sectionStatus(policy, a, "Impact")).toEqual(["ok", "OK"]);
     expect(navStatus(policy, a, hook).questions).toEqual(["ok", "OK"]);
-    expect(navStatus(policy, a, hook).report).toEqual(["review", "REVIEW"]);
-    a.aiAttestation = { by: "Pat", at: "2026-01-01T00:00:00Z" };
-    expect(navStatus(policy, a, hook).report).toEqual(["ok", "OK"]);
-    a.aiAttestation = undefined;
-    a.answers[f.id].origin = "user"; // editing makes it theirs: nothing left to confirm
     expect(navStatus(policy, a, hook).report).toEqual(["ok", "OK"]);
   });
 

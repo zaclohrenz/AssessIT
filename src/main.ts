@@ -5,7 +5,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { bandFor, cautiousChoice, compute, draftMessage, formatDate, isIgnored, pathToApproval, summary, type Result } from "./engine";
 import { chooseConfig, sanitizeConfig, type ConfigChoice } from "./orgconfig";
 import { reportPdf } from "./pdf";
-import { APP_VERSION, changedFromAi, needsAiAttestation, STATUSES, decisionTone, fmtPts, listFields, REQUIRED_DETAILS, reviewFlags, scoreCaption, scoreHeadline, SHAREPOINT_COLUMNS, webhookPayload, xlsxSheets, ZONE_LABEL } from "./report";
+import { APP_VERSION, changedFromAi, STATUSES, decisionTone, fmtPts, listFields, REQUIRED_DETAILS, reviewFlags, scoreCaption, scoreHeadline, SHAREPOINT_COLUMNS, webhookPayload, xlsxSheets, ZONE_LABEL } from "./report";
 import { extractUrls, linkLabel } from "./links";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -502,7 +502,7 @@ function questionsPage(): string {
     .join("");
   const chip = (f: Filter, label: string) => `<button class="chip ${S.filter === f ? "on" : ""}" data-filter="${f}">${label}</button>`;
   return `
-    <div class="section-head"><div><h1>Questionnaire</h1><p class="lede">Pick an answer for every required question. Add notes and sources as evidence; the report quotes them. Not sure about one? Pick the cautious answer shown under it: unknowns count against approval, so a tool never scores better than the evidence supports.</p></div></div>
+    <div class="section-head"><div><h1>Questionnaire</h1><p class="lede">Pick an answer for every required question. Add notes and sources as evidence; the report quotes them. Not sure about one? The line under it says what to do: usually pick the cautious answer, since unknowns count against approval and a tool never scores better than the evidence supports.</p></div></div>
     <div class="row"><div class="filters">${chip("all", "All")}${chip("review", `From AI (<span id="ai-count">${aiN}</span>)`)}${chip("unanswered", "Unanswered")}</div></div>
     ${sections || `<div class="card muted">Nothing matches this filter.</div>`}
     <div class="row"><button class="btn primary" data-tab="report">See the report →</button></div>`;
@@ -540,6 +540,7 @@ function qRow(f: Factor): string {
     <div class="id">${esc(f.id)}</div>
     <div><span class="text">${esc(f.question)}</span><span id="badges-${esc(f.id)}">${badges(f)}</span>
       ${f.guidance ? `<div class="guide">${esc(f.guidance)}</div>` : ""}
+      ${optionMeanings(f)}
       ${unsureHint(f)}
       ${basisChips(f) ? `<div class="refs">${basisChips(f)}</div>` : ""}
       ${whyItMatters(f)}</div>
@@ -555,10 +556,20 @@ function qRow(f: Factor): string {
 
 /** "Not sure?" line under a question: the answer that counts most against approval, and why. */
 function unsureHint(f: Factor): string {
+  // Some questions are looked up, not guessed (a breach either happened or it didn't): the policy says what to do.
+  if (f.unsure) return `<div class="unsure">${esc(f.unsure)}</div>`;
   const pick = cautiousChoice(f);
   if (!pick) return "";
+  const lead = f.research === "internal" ? "Not sure? Ask the requesting team or business owner. If you can't, choose" : "Not sure? Choose";
   const why = f.section === "Mitigation" ? "credit is only given for controls you can confirm" : "it's the cautious answer, and counts against approval until someone confirms otherwise";
-  return `<div class="unsure">Not sure? Choose <b>${esc(pick)}</b>: ${why}.</div>`;
+  return `<div class="unsure">${lead} <b>${esc(pick)}</b>: ${why}.</div>`;
+}
+
+/** What each answer means, in plain words, so a negatively worded question can't be answered backwards. */
+function optionMeanings(f: Factor): string {
+  const rows = f.options.filter((o) => o.hint);
+  if (!rows.length) return "";
+  return `<div class="means">${rows.map((o) => `<div><b>${esc(o.label)}</b> = ${esc(o.hint)}</div>`).join("")}</div>`;
 }
 
 /** Clickable links for the https URLs typed or found in a "Source URL(s)" box (opened in the browser). */
@@ -653,19 +664,19 @@ function meterHtml(r: Result): string {
 function sendCard(): string {
   const flags = reviewFlags(result(), S.a);
   const yolo = flags.length > 0;
-  const needAttest = needsAiAttestation(S.a);
-  const blocked = (yolo && !rules().allowYolo) || needAttest;
+  const blocked = yolo && !rules().allowYolo;
   const sent = S.a.submitted;
   const changed = changedFromAi(S.a);
   const aiN = aiCount();
   return `<h2>Send it</h2>
     <p class="muted" style="margin-top:0">${submitBlurb()}</p>
-    ${yolo ? `<div class="status warn" style="margin-bottom:12px"><span class="dot"></span><div>${blocked && !needAttest ? "🔒 Your organization requires these to be resolved before submitting" : "Not quite ready"}: ${esc(flags.join(" "))}</div></div>` : ""}
+    ${yolo ? `<div class="status warn" style="margin-bottom:12px"><span class="dot"></span><div>${blocked ? "🔒 Your organization requires these to be resolved before submitting" : "Not quite ready"}: ${esc(flags.join(" "))}</div></div>` : ""}
     ${changed.length ? `<p class="muted">You changed ${changed.length} answer${changed.length === 1 ? "" : "s"} from what AI research found (${esc(changed.map((c) => c.id).join(", "))}). Approvers will see the AI's original answer next to yours.</p>` : ""}
-    ${aiN ? `<label class="attest ${S.a.aiAttestation ? "on" : ""}"><input type="checkbox" data-action="toggle-attest" ${S.a.aiAttestation ? "checked" : ""}><span>I have reviewed the AI's answers (${aiN}) and submit this assessment as my own determination.</span></label>` : ""}
+    ${aiN ? `<p class="muted attest-note">${aiN} answer${aiN === 1 ? "" : "s"} came from AI research. Give ${aiN === 1 ? "it" : "them"} a look before you send this: you're the one vouching for the result.</p>
+    <label class="attest ${S.a.aiAttestation ? "on" : ""}"><input type="checkbox" data-action="toggle-attest" ${S.a.aiAttestation ? "checked" : ""}><span>I agree with the AI's research</span></label>` : ""}
     ${sent ? `<div class="status ok" style="margin-bottom:12px"><span class="dot"></span><div>Sent for approval ${esc(new Date(sent.at).toLocaleString())}${sent.flagged ? " (YOLO, with open issues flagged)" : ""}.</div></div>` : ""}
     <div class="row">
-      <button class="btn go ${yolo && !blocked ? "yolo" : ""}" data-action="submit" ${S.submitting || blocked ? "disabled" : ""} ${needAttest ? 'title="Confirm you reviewed the AI\'s answers first"' : ""}>${S.submitting ? "Sending…" : blocked ? "Submit for Approval" : yolo ? "Submit YOLO 🤠" : sent ? "Submit again" : "Submit for Approval"}</button>
+      <button class="btn go ${yolo && !blocked ? "yolo" : ""}" data-action="submit" ${S.submitting || blocked ? "disabled" : ""}>${S.submitting ? "Sending…" : blocked ? "Submit for Approval" : yolo ? "Submit YOLO 🤠" : sent ? "Submit again" : "Submit for Approval"}</button>
       <button class="btn go" data-action="export-pdf">Export to PDF</button>
       <span style="flex:1"></span>
       <button class="btn small" data-action="export-xlsx">Excel…</button>
@@ -721,7 +732,7 @@ function reportBody(): string {
   const aiN = aiCount();
   return `
     <div class="banner ${tone}"><div class="d">${esc(r.finalDecision.toUpperCase())}${r.overridden ? " (OVERRIDE)" : ""}</div><div>${esc(summary(r, S.a))}</div></div>
-    ${aiN ? `<div class="status"><span class="dot"></span><div style="flex:1">${aiN} answer${aiN === 1 ? "" : "s"} came from AI research. Look ${aiN === 1 ? "it" : "them"} over, then confirm below that you did before you submit.</div><button class="btn small" data-action="review-ai">Review ${aiN === 1 ? "it" : "them"}</button></div>` : ""}
+    ${aiN ? `<div class="status"><span class="dot"></span><div style="flex:1">${aiN} answer${aiN === 1 ? "" : "s"} came from AI research. Look ${aiN === 1 ? "it" : "them"} over before you submit.</div><button class="btn small" data-action="review-ai">Review ${aiN === 1 ? "it" : "them"}</button></div>` : ""}
     ${meterHtml(r)}
     <div class="tiles">
       ${tile("Risk score", scoreHeadline(r), esc(scoreCaption(r)), r.meter ? `z-${r.meter.zone}` : "")}
@@ -1250,7 +1261,6 @@ async function submit() {
     render();
     return toast("Choose an approval destination first, or use Export to PDF.");
   }
-  if (needsAiAttestation(S.a)) return toast("Confirm you've reviewed the AI's answers before submitting.", 6000);
   if (flags.length && !rules().allowYolo) return toast("Your organization requires every open issue to be resolved before submitting.", 6000);
   if (flags.length) {
     const ok = await confirmModal(

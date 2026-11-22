@@ -267,6 +267,9 @@ nav button.upd:hover { background: var(--muted-bg); }
 .srclink { background: none; border: 0; padding: 0; font: inherit; font-size: 12.5px; color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 
 /* Report: confirming the AI's answers before submitting */
+.attest-note { margin: 0 0 8px; }
 .attest { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin: 0 0 12px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
 .attest.on { border-color: var(--go); background: var(--ok-bg); }
 .attest input { margin-top: 3px; }
+.q .means { font-size: 12.5px; margin: 4px 0; padding-left: 8px; border-left: 2px solid var(--line); }
+.q .means b { font-weight: 600; }

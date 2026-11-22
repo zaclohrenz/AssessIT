@@ -102,19 +102,16 @@ export const aiAnswerIds = (a: Assessment): string[] =>
     .filter(([, x]) => x.origin === "ai" && (x.response || x.notes))
     .map(([id]) => id);
 
-/** True while AI-proposed answers are in the assessment and the assessor hasn't confirmed reviewing them. */
-export const needsAiAttestation = (a: Assessment): boolean => aiAnswerIds(a).length > 0 && !a.aiAttestation;
-
-/** One sentence for reports and exports about who vouched for the AI's answers. Empty when AI wasn't used. */
+/** One sentence for reports and exports about whether the assessor agreed with the AI's answers. Empty when AI wasn't used. */
 export function aiAttestationText(a: Assessment): string {
   const ids = aiAnswerIds(a);
   if (!ids.length) return "";
   const n = `${ids.length} answer${ids.length === 1 ? "" : "s"} came from AI research (${ids.join(", ")})`;
   const at = a.aiAttestation;
-  if (!at) return `${n}. The assessor has not confirmed reviewing them.`;
+  if (!at) return `${n}. The assessor didn't tick the box to say they agree with them.`;
   const when = at.at.slice(0, 10);
   const who = a.details.assessors.trim() || at.by || "The assessor";
-  return `${n}. ${who} reviewed them and submits them as their own determination (${when}).`;
+  return `${n}. ${who} agreed with them (${when}).`;
 }
 
 /**

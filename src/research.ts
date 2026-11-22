@@ -28,13 +28,14 @@ export function researchSchema(policy: Policy): object {
           type: "object",
           properties: {
             id: { type: "string", enum: ids },
-            response: { type: "string", description: "Exactly one of the question's options, or empty string if unknown." },
-            notes: { type: "string" },
+            // Evidence first, then the answer: the answer must follow from what was just written.
+            notes: { type: "string", description: "What you found and what you checked, in the question's own terms. Write this before choosing the response; the response must agree with it." },
+            response: { type: "string", description: "Exactly one of the question's options, or empty string if you couldn't look. Must agree with notes." },
             sources: { type: "array", items: { type: "string" } },
             confidence: { type: "string", enum: ["high", "medium", "low"] },
             needs_confirmation: { type: "boolean" },
           },
-          required: ["id", "response", "notes", "sources", "confidence", "needs_confirmation"],
+          required: ["id", "notes", "response", "sources", "confidence", "needs_confirmation"],
         },
       },
       resources_consulted: { type: "string" },
@@ -47,12 +48,15 @@ export function researchPrompt(policy: Policy, d: Details, today: string): strin
   const q = policy.factors
     .filter((f) => f.enabled)
     .map((f) => {
-      const opts = f.options.map((o) => `"${o.label}"`).join(" | ");
+      // Spell out what each answer means: negatively worded questions ("lacks X") invert easily.
+      const opts = f.options.some((o) => o.hint)
+        ? f.options.map((o) => `\n    "${o.label}" = ${o.hint ?? "(no description)"}`).join("")
+        : f.options.map((o) => `"${o.label}"`).join(" | ");
       const kind =
         f.research === "public"
           ? "PUBLIC: research this on the web."
           : "INTERNAL: only the requesting organization knows this. Infer from the intended use only when it clearly says so; otherwise leave response empty. Always set needs_confirmation=true.";
-      return `- ${f.id} (${f.section}) ${f.question}\n  Options: ${opts}\n  ${kind}${f.guidance ? `\n  Guidance: ${f.guidance}` : ""}`;
+      return `- ${f.id} (${f.section}) ${f.question}\n  Options:${f.options.some((o) => o.hint) ? "" : " "}${opts}\n  ${kind}${f.guidance ? `\n  Guidance: ${f.guidance}` : ""}`;
     })
     .join("\n");
 
@@ -69,9 +73,16 @@ Search the web and read primary sources to find evidence for each PUBLIC questio
 Run a separate, dedicated search for each of these topics; do not rely on one search to cover several: security certifications (SOC 2 / ISO 27001); data breaches and security incidents; privacy lawsuits and regulator actions; company size and founding date; AI models used; third-party security rating; acquisitions and ownership changes; sub-processors / AI providers; autonomous actions / agent features; SSO and MFA on the named plan; data deletion and retention terms; training on customer data and opt-outs; content safeguards; how the vendor handled any past breach (prompt, honest notice or downplayed); incident notification commitments; vulnerability disclosure policy, fix timelines and track record (check CISA's KEV catalog); data storage locations and sanctioned-country ties; copyright indemnity and training-data lawsuits; government surveillance or military sales; data export and exit terms.
 Prefer primary sources: the vendor's trust center, security/compliance pages, DPA, privacy policy, sub-processor list, and product docs for the specific plan/tier. For breaches, privacy record and ownership changes, check regulators (FTC, state AGs, EU DPAs, ICO) and reputable news. Note when an incident involved a parent company instead of the vendor.
 
+HOW TO ANSWER
+- Each question says what every option means. Work out what the evidence shows first, then choose the option whose meaning matches it. Never choose from the word "Yes" or "No" alone: many questions are worded negatively ("lacks", "no deadline", "decline to say"), and for those, Yes means the good thing is MISSING.
+- Write "notes" first, in the question's own terms, then pick the "response". Before you finish each answer, reread your notes: they must support the option you chose. If your notes say something is missing, absent or not found, the response must be the option that means missing; if they say it exists, the response must be the option that means it exists.
+- When a Yes means something is missing (no certification, no SSO or MFA option, no deletion promise, no breach-notification deadline, no way to report flaws): if you checked the vendor's primary sources and found no evidence it exists, answer Yes with confidence "low" or "medium", set needs_confirmation=true, and say exactly what you checked and could not find. That includes a DPA or contract that isn't public. Answer No only when a source shows it exists, and cite that source.
+- When a Yes means something bad happened (a breach, a lawsuit or fine, an ownership change): answer Yes only with a source that describes it. Answer No only after you searched for it specifically, and say what you searched for and the period covered. A search that finds nothing is a No, not a blank.
+- Leave "response" empty only if you could not look at all (the vendor can't be identified, or nothing relevant could be reached), and say why. Not finding something you searched for is never a reason to leave it empty.
+
 RULES
-- "response" must be exactly one of the listed options, or "" if you could not find enough evidence. Do not guess on PUBLIC questions; an empty answer with good notes is better than a wrong one.
-- "notes": 1-3 factual sentences a reviewer can quote. Include dates. Say what you could not verify.
+- "response" must be exactly one of the listed options, or "" under the condition above.
+- "notes": 1-3 factual sentences a reviewer can quote. Include dates. Say what you checked and what you could not verify.
 - "sources": the URLs you actually relied on.
 - "confidence": high = primary source states it directly; medium = secondary or indirect; low = inference.
 - Set needs_confirmation=true when the answer depends on contract terms, configuration, or anything the buyer must verify.
