@@ -4,7 +4,7 @@
 
 **Score a software vendor's risk and get an approve or deny decision, with the reasons behind it.** AI does the legwork of finding the evidence. A person reviews it. The math follows published guidance from NIST and CISA.
 
-AssessIT is a free desktop app for macOS and Windows:
+AssessIT is a free desktop app for macOS, Windows and Linux:
 
 <br clear="left">
 
@@ -48,6 +48,21 @@ To use your organization's config URL, run this once in a terminal before openin
 ```bat
 reg add HKCU\Software\AssessIT /v ConfigURL /d "https://…/assessit-config.json" /f
 ```
+
+### Linux
+
+Download from [Releases](https://github.com/zaclohrenz/AssessIT/releases):
+
+- **Debian / Ubuntu:** `sudo apt install ./AssessIT_x.y.z_amd64.deb`
+- **Anything else:** `chmod +x AssessIT_x.y.z_amd64.AppImage && ./AssessIT_x.y.z_amd64.AppImage`
+
+To use your organization's config URL, write it to a file (or paste it into **Settings → Organization config**):
+
+```sh
+mkdir -p ~/.config/assessit && echo "https://…/assessit-config.json" > ~/.config/assessit/config-url
+```
+
+Admins can set a managed URL users can't override in `/etc/assessit/config-url`.
 
 ## AI research: no API keys
 
@@ -121,7 +136,7 @@ Admin-managed settings win. Next, a URL typed in Settings beats the install-time
 
 | How | Who it's for | What to do |
 |---|---|---|
-| **MDM / Group Policy** | IT-managed fleets | macOS: deploy a configuration profile, or `sudo defaults write /Library/Preferences/io.github.zaclohrenz.assessit ConfigURL "https://…"`. Windows: set registry value `HKLM\Software\AssessIT\ConfigURL` (REG_SZ) via Intune or GPO. Only admins can set these, so users can't change them. (The same value set without admin rights counts like an install-time URL.) |
+| **MDM / Group Policy** | IT-managed fleets | macOS: deploy a configuration profile, or `sudo defaults write /Library/Preferences/io.github.zaclohrenz.assessit ConfigURL "https://…"`. Windows: set registry value `HKLM\Software\AssessIT\ConfigURL` (REG_SZ) via Intune or GPO. Linux: write the URL to root-owned `/etc/assessit/config-url`. Only admins can set these, so users can't change them. (The same value set without admin rights counts like an install-time URL.) |
 | **At install time** | Homebrew users | `HOMEBREW_ASSESSIT_CONFIG_URL="https://…" brew install --cask assessit`. Homebrew only passes through variables starting with `HOMEBREW_`. Later `brew upgrade`s keep the URL. If that config has `lock`, users can't swap it for another URL in Settings. |
 | **Settings → Organization config** | Anyone | Paste the URL once. |
 | **Nothing** | Everyone else | AssessIT uses the public defaults attached to this project's latest release. |
@@ -175,7 +190,7 @@ Merging pull requests never releases anything. To ship what's on `main`:
 
 The workflow:
 1. works out the version and checks the tag name is free;
-2. tests and builds the universal macOS zip and the Windows installer, in parallel;
+2. tests and builds the universal macOS zip, the Windows installer, and the Linux .deb/AppImage, in parallel;
 3. if you've required approval, waits for it (the builds can be downloaded from the run while it waits);
 4. publishes in one step:
    - the `vX.Y.Z` tag and the GitHub release, with the apps, the public default config and policy attached, and notes listing the PRs merged since the last release;
@@ -191,7 +206,7 @@ The repo uses GitHub's immutable releases: once published, a release can't chang
 
 ## Development
 
-Requirements: Node 22+, Rust (stable), and on macOS the Xcode command line tools.
+Requirements: Node 22+, Rust (stable), and on macOS the Xcode command line tools. On Debian/Ubuntu also: `sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev libxdo-dev patchelf`.
 
 ```sh
 npm install
@@ -199,6 +214,7 @@ npm test                 # unit tests, golden scoring cases, citation and docs c
 npm run tauri dev        # run the app with hot reload
 npm run docs:scoring     # regenerate SCORING.md tables after editing the policy
 scripts/package-mac.sh   # universal macOS .app → release/*.zip (+ sha256)
+npx tauri build --bundles deb,appimage   # Linux packages → src-tauri/target/release/bundle/
 ```
 
 | Path | What |

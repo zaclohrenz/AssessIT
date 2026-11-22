@@ -16,7 +16,8 @@ use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
 
-pub const BUNDLE_ID: &str = "io.github.zaclohrenz.assessit";
+#[cfg(target_os = "macos")]
+const BUNDLE_ID: &str = "io.github.zaclohrenz.assessit";
 const MAX_BYTES: usize = 2 * 1024 * 1024;
 
 #[derive(Serialize)]
@@ -79,9 +80,19 @@ fn pref_url() -> Option<PrefUrl> {
     })
 }
 
+/// Linux has no MDM preference store, so mirror it with files:
+/// `/etc/assessit/config-url` is root-owned (admin), `$XDG_CONFIG_HOME/assessit/config-url` is the user's own.
 #[cfg(not(any(target_os = "macos", windows)))]
 fn pref_url() -> Option<PrefUrl> {
-    None
+    let read = |p: PathBuf| std::fs::read_to_string(p).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+    if let Some(url) = read(PathBuf::from("/etc/assessit/config-url")) {
+        return Some(PrefUrl { url, admin: true });
+    }
+    let user_dir = std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
+    read(user_dir.join("assessit/config-url")).map(|url| PrefUrl { url, admin: false })
 }
 
 fn data_dir(app: &AppHandle) -> Option<PathBuf> {
