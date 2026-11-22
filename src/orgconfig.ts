@@ -38,10 +38,11 @@ export function chooseConfig(
  * a project-wide file must never be able to redirect anyone's submissions.
  */
 export function sanitizeConfig(kind: ConfigKind, raw: unknown): OrgConfig {
-  if (!raw || typeof raw !== "object" || (raw as any).assessitConfig !== 1)
-    throw new Error('Not an AssessIT config: it needs "assessitConfig": 1.');
+  const version = (raw as any)?.assessitConfig;
+  if (!raw || typeof raw !== "object" || (version !== 1 && version !== 2))
+    throw new Error('Not an AssessIT config: it needs "assessitConfig": 1 or 2.');
   const r = raw as any;
-  const out: OrgConfig = { assessitConfig: 1, name: typeof r.name === "string" ? r.name : undefined };
+  const out: OrgConfig = { assessitConfig: version, name: typeof r.name === "string" ? r.name : undefined };
   if (r.policy) out.policy = validatePolicy(r.policy);
   if (typeof r.policyUrl === "string") out.policyUrl = r.policyUrl;
   if (kind === "default") return out;

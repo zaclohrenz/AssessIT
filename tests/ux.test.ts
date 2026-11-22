@@ -47,16 +47,18 @@ describe("risk meter", () => {
 
 describe("cautious answer when you're unsure", () => {
   const f = (id: string) => policy.factors.find((x) => x.id === id)!;
-  it("is the answer that scores worst: Yes for risk questions", () => {
-    expect(cautiousChoice(f("L1"))).toBe("Yes");
+  it("is the answer that scores worst: No for 'does it have X?' questions, Yes for 'did something bad happen?' ones", () => {
+    expect(cautiousChoice(f("L1"))).toBe("No"); // can't show a current audit: no credit
+    expect(cautiousChoice(f("L14"))).toBe("No");
+    expect(cautiousChoice(f("L6"))).toBe("Yes");
     expect(cautiousChoice(f("I3"))).toBe("Sensitive");
   });
   it("is No for mitigations, because Yes there earns a credit", () => {
     for (const id of ["M1", "M2", "M3", "M4", "M5"]) expect(cautiousChoice(f(id))).toBe("No");
   });
-  it("uses the policy's own 'Not rated' / 'Unknown' option when it counts against approval", () => {
+  it("uses the policy's own 'Not rated' / 'Unknown' option when it counts partway against approval", () => {
     expect(cautiousChoice(f("L7"))).toBe("Not rated");
-    expect(cautiousChoice(f("L9"))).toBe("Unknown");
+    for (const id of ["L2", "L3", "L9", "L13", "P4", "P5"]) expect(cautiousChoice(f(id)), id).toBe("Unknown");
   });
   it("never suggests a hard-stop answer, or a 'worse' unknown that the policy scores as harmless", () => {
     expect(cautiousChoice({ section: "Likelihood", hardStop: "Yes", options: [{ label: "Yes", points: 2 }, { label: "No", points: 0 }] })).toBeNull();

@@ -1,3 +1,4 @@
+import { FLIPPED_IN_V4 } from "../src/settings";
 import { describe, expect, it } from "vitest";
 import { addMonths, compute, draftMessage, pathToApproval, summary } from "../src/engine";
 import defaultPolicy from "../src/policy/default-policy.json";
@@ -9,6 +10,9 @@ const org = { orgName: "Example Org", reviewTeam: "Digital Operations Team", pol
 const clone = (): Assessment => structuredClone(example) as Assessment;
 
 // Expected values are the cached results from the reference workbook (Claude.xlsx).
+/** The answer that raises the score. v4 turned negated questions around, so for those it's "No". */
+const concern = (id: string) => (FLIPPED_IN_V4.includes(id) ? "No" : "Yes");
+
 describe("matches the reference workbook", () => {
   const a = clone();
   const r = compute(policy, a);
@@ -49,7 +53,7 @@ describe("matches the reference workbook", () => {
       ["Breach in the last 3 years", 9.5],
       ["Privacy trouble", 9.5],
       ["Third-party security rating", 9.5],
-      ["Acts on its own", 9.5],
+      ["Human approval of actions", 9.5],
     ]);
     expect(r.mitigations.map((m) => [m.factor.factor, +m.scoreReduction.toFixed(2)])).toEqual([
       ["SSO with automatic provisioning", 2.25],
@@ -105,7 +109,7 @@ describe("decision rules", () => {
 
   it("organization preferences scale the whole score", () => {
     const a = clone();
-    a.answers.P1.response = "Yes";
+    a.answers.P1.response = concern("P1");
     const r = compute(policy, a);
     expect(r.preference).toBe(1.5);
     expect(r.score).toBeCloseTo(45 * 1.5 * 0.95);
@@ -117,13 +121,13 @@ describe("decision rules", () => {
   it("each new organization preference scales the score like the original three", () => {
     for (const id of ["P4", "P5", "P6", "P7", "P8"]) {
       const a = clone();
-      a.answers[id].response = "Yes";
+      a.answers[id].response = concern(id);
       const r = compute(policy, a);
       expect(r.preference, id).toBe(1.5);
       expect(r.score, id).toBeCloseTo(45 * 1.5 * 0.95);
     }
     const all = clone();
-    for (const id of ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"]) all.answers[id].response = "Yes";
+    for (const id of ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"]) all.answers[id].response = concern(id);
     expect(compute(policy, all).preference).toBe(5);
   });
 
@@ -131,7 +135,7 @@ describe("decision rules", () => {
     const base = compute(policy, clone()).likelihood;
     for (const [id, pts] of [["L13", 2], ["L14", 1], ["L15", 1]] as const) {
       const a = clone();
-      a.answers[id].response = "Yes";
+      a.answers[id].response = concern(id);
       expect(compute(policy, a).likelihood - base, id).toBe(pts);
     }
   });

@@ -271,5 +271,6 @@ nav button.upd:hover { background: var(--muted-bg); }
 .attest { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin: 0 0 12px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
 .attest.on { border-color: var(--go); background: var(--ok-bg); }
 .attest input { margin-top: 3px; }
+.q .where { color: var(--muted); font-size: 12.5px; }
 .q .means { font-size: 12.5px; margin: 4px 0; padding-left: 8px; border-left: 2px solid var(--line); }
 .q .means b { font-weight: 600; }

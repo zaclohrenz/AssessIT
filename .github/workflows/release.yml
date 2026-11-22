@@ -116,7 +116,7 @@ jobs:
             release/*.zip
             release/*.tar.gz
             release/assessit-config.json
-            release/default-policy.json
+            release/default-policy-v4.json
           if-no-files-found: error
 
   windows:

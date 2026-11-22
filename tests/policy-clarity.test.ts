@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { cautiousChoice } from "../src/engine";
+import { FLIPPED_IN_V4 } from "../src/settings";
 import defaultPolicy from "../src/policy/default-policy.json";
 import type { Policy } from "../src/types";
 
@@ -23,18 +24,39 @@ describe("default questions are self-explanatory", () => {
     const text = JSON.stringify(policy);
     expect(text).not.toMatch(/original template|carried over from/i);
   });
-  it("negatively worded questions (where Yes means something is missing) all say so in the Yes hint", () => {
-    const negative = /\b(lack|lacks|no |decline|unwilling|refuse|without)\b/i;
-    for (const f of yesNo.filter((x) => x.section === "Likelihood" && negative.test(x.question)))
-      expect(f.options.find((o) => o.label === "Yes")!.hint, f.id).toMatch(/\b(no|not|only|doesn't|isn't|can't|without|missing)\b/i);
+  it("no question is worded as a negation: they all ask about something that exists or happened", () => {
+    const negation = /\b(lack|lacks|lacking|without|unwilling|refuse|refuses|decline|declines|fail to|set no|no public|has no|have no|no deadline|no current)\b/i;
+    for (const f of policy.factors) expect(f.question, f.id).not.toMatch(negation);
   });
-  it("questions that are looked up, not guessed, say to look first rather than to assume the worst", () => {
-    const f = (id: string) => policy.factors.find((x) => x.id === id)!;
-    for (const id of ["L2", "L3", "L13"]) expect(f(id).unsure, id).toMatch(/search|compare|answer/i);
-    // ...while a missing control defaults to the cautious answer (no override).
-    for (const id of ["L1", "L11", "L12", "L14"]) {
-      expect(f(id).unsure, id).toBeUndefined();
-      expect(cautiousChoice(f(id)), id).toBe("Yes");
+  it("the questions that were negations were turned around: Yes is the good answer, and scores 0", () => {
+    for (const id of FLIPPED_IN_V4) {
+      const f = policy.factors.find((x) => x.id === id)!;
+      expect(f.options.find((o) => o.label === "Yes")!.points, id).toBe(0);
+      expect(f.options.find((o) => o.label === "No")!.points, id).toBeGreaterThan(0);
+    }
+  });
+  it("lookups of things that may have happened offer an honest Unknown, between the two answers", () => {
+    for (const id of ["L2", "L3", "L4", "L8", "L10", "L13", "P4", "P5", "P7", "P8"]) {
+      const f = policy.factors.find((x) => x.id === id)!;
+      const unknown = f.options.find((o) => o.label === "Unknown")!;
+      const worst = Math.max(...f.options.map((o) => o.points));
+      expect(unknown, id).toBeTruthy();
+      expect(unknown.hint, id).toBeTruthy();
+      expect(unknown.points, id).toBeGreaterThan(0);
+      expect(unknown.points, id).toBeLessThan(worst);
+    }
+  });
+  it("controls and contract promises have no Unknown: no evidence means no credit", () => {
+    for (const id of ["L1", "L11", "L12", "L14", "L15"]) {
+      const f = policy.factors.find((x) => x.id === id)!;
+      expect(f.options.map((o) => o.label), id).toEqual(["Yes", "No"]);
+      expect(cautiousChoice(f), id).toBe("No");
+    }
+  });
+  it("every question answered from the web says where to look, without that being a limit", () => {
+    for (const f of policy.factors.filter((x) => x.research === "public")) {
+      expect(f.lookWhere, f.id).toBeTruthy();
+      expect(f.lookWhere, f.id).not.toMatch(/\bonly\b/i);
     }
   });
   it("the rating question explains how to convert the scales those services actually use", () => {

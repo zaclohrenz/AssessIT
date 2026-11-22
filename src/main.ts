@@ -133,6 +133,14 @@ function applyRules() {
 
 const policy = () => activePolicy(S.settings);
 const result = (): Result => compute(policy(), S.a);
+
+/** Brings the open assessment in line with the policy in use (stamps its version; swaps Yes/No on questions a newer default policy turned around). Run whenever the assessment or the policy changes. */
+function migrateCurrent() {
+  const before = JSON.stringify(S.a);
+  migrateAssessment(S.a, policy());
+  if (JSON.stringify(S.a) !== before) persist();
+}
+migrateCurrent();
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector<T>(sel);
 const esc = (s: unknown) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -476,7 +484,7 @@ const SECTION_BLURB: Record<Section, string> = {
   Likelihood: "Signs an incident is more likely.",
   Impact: "How bad an incident would be for us.",
   Preference:
-    "Things many organizations care about where NIST and CISA don't yet say how much they should count. These are value choices, so each 'Yes' scales the whole score instead of adding points.",
+    "Things many organizations care about where NIST and CISA don't yet say how much they should count. These are value choices, so each concern scales the whole score instead of adding points.",
   Mitigation: "Controls we have in place. They cut the final score, and become conditions of approval.",
 };
 
@@ -540,6 +548,7 @@ function qRow(f: Factor): string {
     <div class="id">${esc(f.id)}</div>
     <div><span class="text">${esc(f.question)}</span><span id="badges-${esc(f.id)}">${badges(f)}</span>
       ${f.guidance ? `<div class="guide">${esc(f.guidance)}</div>` : ""}
+      ${lookWhere(f)}
       ${optionMeanings(f)}
       ${unsureHint(f)}
       ${basisChips(f) ? `<div class="refs">${basisChips(f)}</div>` : ""}
@@ -556,13 +565,23 @@ function qRow(f: Factor): string {
 
 /** "Not sure?" line under a question: the answer that counts most against approval, and why. */
 function unsureHint(f: Factor): string {
-  // Some questions are looked up, not guessed (a breach either happened or it didn't): the policy says what to do.
   if (f.unsure) return `<div class="unsure">${esc(f.unsure)}</div>`;
   const pick = cautiousChoice(f);
   if (!pick) return "";
-  const lead = f.research === "internal" ? "Not sure? Ask the requesting team or business owner. If you can't, choose" : "Not sure? Choose";
-  const why = f.section === "Mitigation" ? "credit is only given for controls you can confirm" : "it's the cautious answer, and counts against approval until someone confirms otherwise";
+  const unknown = /^(unknown|not rated)$/i.test(pick.trim());
+  const lead = f.research === "internal" ? "Not sure? Ask the requesting team or business owner. If you can't, choose" : "Not sure? Check the places above first. If you still can't tell, choose";
+  // Neither direction gets a free pass: a gap is never scored as a clean bill of health, and never as an accusation.
+  const why = unknown
+    ? "it counts partway against approval, so a gap is never scored as a clean bill of health"
+    : f.section === "Mitigation"
+      ? "credit is only given for what you can confirm"
+      : "credit is only given for what you can show, so it counts against approval until someone confirms it";
   return `<div class="unsure">${lead} <b>${esc(pick)}</b>: ${why}.</div>`;
+}
+
+/** Common places to look, as examples: the same list the AI gets. */
+function lookWhere(f: Factor): string {
+  return f.lookWhere ? `<div class="where"><b>Where to look:</b> ${esc(f.lookWhere)}.</div>` : "";
 }
 
 /** What each answer means, in plain words, so a negatively worded question can't be answered backwards. */
@@ -583,7 +602,7 @@ const refLabel = (r: Reference) => `${r.source}${r.id ? ` ${r.id}` : ""}`;
 
 /** Small tag on the question line: only org preferences get one. Citations live under "Why it matters". */
 function basisChips(f: Factor): string {
-  return f.basis === "preference" ? `<span class="ref pref" title="A values choice, not published guidance. Each 'Yes' scales the whole score.">Org preference</span>` : "";
+  return f.basis === "preference" ? `<span class="ref pref" title="A values choice, not published guidance. Each concern scales the whole score.">Org preference</span>` : "";
 }
 
 /** Collapsed by default: the rationale, then the NIST / CISA / OWASP sources behind it. */
@@ -936,6 +955,7 @@ async function loadRemoteConfig() {
   }
   S.remote = next;
   recomputeSettings();
+  migrateCurrent();
   applyRules();
   refreshConfigViews();
 }
@@ -1180,7 +1200,8 @@ async function openFile() {
   const data = (await openJson(JSON_ASSESSMENT)) as any;
   if (!data) return;
   if (!data.details || !data.answers) throw new Error("That file isn't an AssessIT assessment.");
-  S.a = migrateAssessment({ details: { ...blankAssessment().details, ...data.details }, answers: data.answers, submitted: data.submitted });
+  S.a = { details: { ...blankAssessment().details, ...data.details }, answers: data.answers, submitted: data.submitted, aiAttestation: data.aiAttestation, policyVersion: data.policyVersion };
+  migrateCurrent();
   applyRules();
   persist();
   S.research = { running: false, log: [], error: "", done: "" };
@@ -1191,6 +1212,7 @@ async function openFile() {
 async function newAssessment() {
   if (!(await ask("Start a new assessment? Anything you haven't saved will be cleared.", { title: "New assessment", kind: "warning" }))) return;
   S.a = blankAssessment();
+  migrateCurrent();
   S.research = { running: false, log: [], error: "", done: "" };
   persist();
   S.tab = "request";
@@ -1438,7 +1460,7 @@ const actions: Record<string, () => unknown> = {
     render();
   },
   "config-export": async () => {
-    const out: OrgConfig = { assessitConfig: 1, name: `${S.settings.org.orgName} AssessIT config`, lock: false, ...S.settings, policy: policy() };
+    const out: OrgConfig = { assessitConfig: 2, name: `${S.settings.org.orgName} AssessIT config`, lock: false, ...S.settings, policy: policy() };
     if (!(await saveJson("assessit-org-config.json", fileKind("Org config", "json"), out))) return;
     toast("Exported. Set \"lock\": true in the file to stop users changing these settings.", 6000);
   },

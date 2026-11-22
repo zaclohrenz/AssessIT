@@ -81,7 +81,9 @@ Risk Score = Likelihood × Impact × Preference multiplier × (1 − Mitigation 
 
 The report shows the score as a **percentage of the approval limit** (the score where your policy starts denying; 58 in the defaults), so lower is better and 100% is the line. **Green** is under the limit. **Yellow** is over it, but the mitigations your policy still offers could bring it under. **Red** is over it even with every mitigation, or a hard stop was hit.
 
-Not sure about a question? Each shows the **cautious answer** to pick: the one that counts most against approval (Yes for most questions; No for mitigations, since Yes there earns a credit; and the policy's own "Not rated" / "Unknown" where it has one). Missing evidence never makes a tool look safer than it is.
+Not sure about a question? The line under it says what to do, and a gap is never scored as a clean bill of health. Questions that ask *"does the vendor have X?"* (a certification, SSO, a deletion promise) give credit only for what you can show, so no evidence means **No**. Questions that ask *"did something bad happen?"* (a breach, a lawsuit, an ownership change) have an **Unknown** answer that counts partway against approval: *No* means you checked at least two kinds of source and found nothing, and *Unknown* means you couldn't tell, so a missed search never reads as a clean record. Every question shows common places to look and says what each answer means.
+
+The AI follows the same rules, and checks more than one independent source per topic (for example a regulator or court record *and* news, or CISA's KEV catalog and CVE records alongside the vendor's own advisories). Its sources and notes are in each answer for you to check.
 
 [**SCORING.md**](SCORING.md) explains it in one page, with a worked example and the basis for every question. In short:
 
@@ -114,19 +116,20 @@ Without `lock`, everything here is a pre-filled default. Users get your approval
 
 ```json
 {
-  "assessitConfig": 1,
+  "assessitConfig": 2,
   "name": "Contoso AssessIT config (managed)",
   "lock": true,
   "rules": { "allowOverride": false, "allowYolo": false },
   "org": { "orgName": "Contoso", "reviewTeam": "Contoso IT Risk Review" },
   "submit": { "method": "sharepoint", "tenant": "contoso.onmicrosoft.com", "clientId": "…your Entra app ID…",
               "siteUrl": "https://contoso.sharepoint.com/sites/ITRisk", "listName": "Software Risk Assessments" },
-  "policyUrl": "https://github.com/zaclohrenz/AssessIT/releases/latest/download/default-policy.json"
+  "policyUrl": "https://github.com/zaclohrenz/AssessIT/releases/latest/download/default-policy-v4.json"
 }
 ```
 
 | Option | What it does |
 |---|---|
+| `"assessitConfig": 2` | Use `2` when your config uses the default policy from release 0.2 on (as `policyUrl` does here). Version 0.2 turned some Yes/No questions around, so apps older than 0.2 reject a `2` config and keep their last good copy, instead of scoring answers the wrong way round. `1` still works for configs that don't carry the default policy. |
 | `"lock": true` | Users can't change anything the file sets. It also **pins the scoring policy** (yours, or the default), so nobody can import a more lenient one. Set at install time, it also pins the config URL: see "Changing a locked URL" below. |
 | `"lock": ["submit", "policy"]` | Lock only some parts. Any of `org`, `submit`, `model`, `policy`. |
 | `rules.allowOverride: false` | Hides **Decision override**. The calculated decision is what gets submitted; approvers can still accept risk when they decide. |

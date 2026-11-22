@@ -83,7 +83,7 @@ export interface Result {
  *
  * - likelihood:  sum of Likelihood points (signs an incident is more likely)
  * - impact:      sum of Impact points (how bad an incident would be)
- * - preference:  1.0 + 0.5 for each organization-preference concern answered "Yes"
+ * - preference:  1.0 + 0.5 for each organization-preference concern (the answer the policy scores 0.5)
  * - mitigation:  fraction of the score removed by controls in place, capped (default 25%)
  *
  * Likelihood × Impact follows NIST SP 800-30 Rev. 1. The golden cases in

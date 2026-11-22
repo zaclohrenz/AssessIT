@@ -15,7 +15,7 @@
   },
   "answers": {
     "L1": {
-      "response": "No",
+      "response": "Yes",
       "notes": "SOC 2 Type I and Type II, ISO/IEC 27001:2022, and ISO/IEC 42001:2023 are listed by Anthropic. Reports are in the Trust Portal.",
       "sources": "https://support.claude.com/en/articles/10015870",
       "origin": "user"
@@ -39,7 +39,7 @@
       "origin": "user"
     },
     "L5": {
-      "response": "No",
+      "response": "Yes",
       "notes": "Anthropic names each Claude model and publishes system cards that describe training data and evaluations.",
       "sources": "https://www.anthropic.com/system-cards",
       "origin": "user"
@@ -69,19 +69,19 @@
       "origin": "user"
     },
     "L10": {
-      "response": "Yes",
+      "response": "No",
       "notes": "Claude Code and connectors can edit files, run commands, and call tools. Auto mode uses a classifier instead of a person for each action, so per-action approval is optional.",
       "sources": "https://code.claude.com/docs/en/permission-modes",
       "origin": "user"
     },
     "L11": {
-      "response": "No",
+      "response": "Yes",
       "notes": "SSO (SAML/OIDC) is available on Team and Enterprise plans. MFA must be enforced at the identity provider.",
       "sources": "https://support.claude.com/en/articles/13917894",
       "origin": "user"
     },
     "L12": {
-      "response": "No",
+      "response": "Yes",
       "notes": "Enterprise custom retention: admins set a period (30-day minimum), and data past retention is permanently deleted. Confirm deletion-on-request wording in the signed contract.",
       "sources": "https://support.claude.com/en/articles/10440198",
       "origin": "user"
@@ -129,19 +129,19 @@
       "origin": "user"
     },
     "P1": {
-      "response": "No",
+      "response": "Yes",
       "notes": "Usage policy bans explicit, violent, deceptive, and degrading content. Safeguards Team monitors violations and real-time safeguards can block outputs.",
       "sources": "https://www.anthropic.com/legal/aup",
       "origin": "user"
     },
     "P2": {
-      "response": "No",
+      "response": "Yes",
       "notes": "Commercial data is not used for training by default. The 2025 consumer training change is scored under L3, not here.",
       "sources": "https://privacy.claude.com/en/articles/7996868-is-my-data-used-for-model-training",
       "origin": "user"
     },
     "P3": {
-      "response": "No",
+      "response": "Yes",
       "notes": "Enforceable opt-out exists: owners can turn off feedback ('Rate chats') under Organization settings > Data and Privacy. Submitted feedback may be kept up to 5 years.",
       "sources": "https://privacy.claude.com/en/articles/7996868-is-my-data-used-for-model-training",
       "origin": "user"
@@ -183,13 +183,13 @@
       "origin": "user"
     },
     "L14": {
-      "response": "No",
+      "response": "Yes",
       "notes": "",
       "sources": "",
       "origin": "user"
     },
     "L15": {
-      "response": "No",
+      "response": "Yes",
       "notes": "",
       "sources": "",
       "origin": "user"
@@ -207,7 +207,7 @@
       "origin": "user"
     },
     "P6": {
-      "response": "No",
+      "response": "Yes",
       "notes": "",
       "sources": "",
       "origin": "user"
