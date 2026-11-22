@@ -2,7 +2,6 @@ mod claude;
 mod config;
 mod export;
 mod submit;
-mod update;
 mod vuln;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -10,6 +9,15 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            // In-app updates: checks the signed manifest on GitHub Releases (see tauri.conf.json).
+            #[cfg(desktop)]
+            {
+                app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+                app.handle().plugin(tauri_plugin_process::init())?;
+            }
+            Ok(())
+        })
         .manage(claude::ResearchState::default())
         .manage(submit::GraphState::default())
         .invoke_handler(tauri::generate_handler![
@@ -31,7 +39,6 @@ pub fn run() {
             config::fetch_config,
             vuln::cve_record,
             vuln::kev_lookup,
-            update::latest_release,
         ])
         .run(tauri::generate_context!())
         .expect("error while running AssessIT");

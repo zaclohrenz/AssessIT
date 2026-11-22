@@ -35,7 +35,7 @@ brew trust --cask zaclohrenz/assessit/assessit
 HOMEBREW_ASSESSIT_CONFIG_URL="https://…/assessit-config.json" brew install --cask assessit
 ```
 
-Open **AssessIT** from Applications or Launchpad. Updates arrive with `brew upgrade` and keep the config URL. You can also set it later in **Settings → Organization config**, unless your org locked it. For MDM and other options, see [Rolling it out](#rolling-it-out-to-your-organization).
+Open **AssessIT** from Applications or Launchpad. Updates arrive with `brew upgrade` or the app's own **Update** button, and keep the config URL. You can also set it later in **Settings → Organization config**, unless your org locked it. For MDM and other options, see [Rolling it out](#rolling-it-out-to-your-organization).
 
 > **Why Homebrew?** AssessIT is free, so it isn't signed with a paid Apple Developer ID. When you install through this cask, it clears macOS's download quarantine flag, so the app opens with a normal double-click. If you download the zip by hand instead, right-click the app → **Open** the first time.
 
@@ -192,8 +192,9 @@ The workflow:
 1. works out the version and checks the tag name is free;
 2. tests and builds the universal macOS zip, the Windows installer, and the Linux .deb/AppImage, in parallel;
 3. if you've required approval, waits for it (the builds can be downloaded from the run while it waits);
-4. publishes in one step:
-   - the `vX.Y.Z` tag and the GitHub release, with the apps, the public default config and policy attached, and notes listing the PRs merged since the last release;
+4. signs the files the in-app updater downloads and builds `latest.json` (only this job sees the signing key, and it stops if a signature doesn't verify against the public key in `tauri.conf.json`);
+5. publishes in one step:
+   - the `vX.Y.Z` tag and the GitHub release, with the apps, their signatures, `latest.json`, the public default config and policy attached, and notes listing the PRs merged since the last release;
    - a pull request, merged automatically, that updates the version on `main` and `Casks/assessit.rb`.
 
 **If any step fails, nothing has changed:** no tag, no release, no commit. Fix the problem and run it again. Don't merge into `main` while a release is building; the workflow stops rather than release something it didn't test.
@@ -202,7 +203,20 @@ The workflow:
 - To approve each release by hand, add yourself under **Settings → Environments → release → Required reviewers**. The environment appears after the first run, or create it yourself.
 - Under **Settings → Actions → General**, tick **Allow GitHub Actions to create and approve pull requests**, so the release can open its version PR. If your `main` rules require an approving review, the release run stops with a link to that PR; approve and merge it to finish.
 
-The repo uses GitHub's immutable releases: once published, a release can't change, and its tag name can never be reused, even if the release is deleted. Homebrew users get each release on their next `brew upgrade`.
+The repo uses GitHub's immutable releases: once published, a release can't change, and its tag name can never be reused, even if the release is deleted. Homebrew users get each release on their next `brew upgrade`; everyone can also click **Update** next to the version in the app.
+
+### Update signing
+
+The in-app updater only installs files signed with this project's own key (free, and unrelated to Apple or Microsoft code signing). One-time setup:
+
+1. On your own machine run `npx tauri signer generate -w ~/.tauri/assessit.key`. Choose a password. It writes the private key (`assessit.key`) and the public key (`assessit.key.pub`).
+2. Put the **contents of `assessit.key.pub`** in `src-tauri/tauri.conf.json` as `plugins.updater.pubkey`. This one is public.
+3. Under **Settings → Environments → release → Environment secrets**, add `TAURI_SIGNING_PRIVATE_KEY` (the contents of `assessit.key`) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Use environment secrets rather than repository secrets, and under **Deployment branches** allow only `main`, so only the approved release job on `main` can read them.
+4. Back up `assessit.key` and its password somewhere private. If they're lost, installed apps can never update again and users must reinstall by hand.
+
+Pull requests from forks never receive these secrets. The release log never prints the signing tool's output, so a failed signing step names the file that failed and nothing about the key.
+
+Linux note: the `.deb` updates through the system's `pkexec`/`dpkg`, so it asks for an administrator password; the AppImage, macOS app and Windows installer update in place.
 
 ## Development
 

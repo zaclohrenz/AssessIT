@@ -1,21 +1,20 @@
-// "Is there a newer release?" Pure helpers; the app asks GitHub through the `latest_release` command
-// (src-tauri/src/update.rs) because the webview can't make network requests itself.
+// In-app updates. The app checks a signed manifest (latest.json) on GitHub Releases through
+// tauri-plugin-updater; main.ts drives it. Only the pure bits live here, so they can be tested.
 
 const RELEASES_URL = "https://github.com/zaclohrenz/AssessIT/releases";
 export const releaseUrl = (version: string) => `${RELEASES_URL}/tag/v${version.replace(/^v/, "")}`;
 
-const parse = (v: string): number[] | null => {
-  const m = /^v?(\d+)\.(\d+)\.(\d+)/.exec(v.trim());
-  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
-};
+export type UpdateState =
+  | { kind: "checking" }
+  | { kind: "latest" }
+  /** `failed` is why the last install attempt didn't work, so the badge can offer a retry and the release page. */
+  | { kind: "available"; latest: string; failed?: string }
+  /** `pct` is null until the download size is known. */
+  | { kind: "installing"; latest: string; pct: number | null }
+  | { kind: "error"; message: string };
 
-/** True when `latest` is a higher X.Y.Z than `current`. Anything unparseable counts as not newer. */
-export function isNewer(latest: string, current: string): boolean {
-  const a = parse(latest);
-  const b = parse(current);
-  if (!a || !b) return false;
-  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i];
-  return false;
+/** Download progress as a whole percent, or null while the total size is unknown. */
+export function percent(received: number, total: number): number | null {
+  if (!total || total <= 0) return null;
+  return Math.max(0, Math.min(100, Math.round((received / total) * 100)));
 }
-
-export type UpdateState = { kind: "checking" } | { kind: "latest" } | { kind: "available"; latest: string } | { kind: "error"; message: string };
