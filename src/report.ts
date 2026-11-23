@@ -83,6 +83,27 @@ export function scoreHeadline(r: Result): string {
   return r.meter ? `${r.meter.percent}%` : r.score.toFixed(1);
 }
 
+/** For the screen: no points, just what the percentage means. The breakdown lives in `scoreTooltip`. */
+export function scoreCaptionPlain(r: Result): string {
+  if (r.finalDecision === "Incomplete") return "Answer every required question to see it";
+  return r.meter ? `${ZONE_LABEL[r.meter.zone]} · lower is better` : "lower is better";
+}
+
+/** The full numbers behind the percentage, for a hover tooltip. Exports and payloads carry the same figures. */
+export function scoreTooltip(r: Result): string {
+  const n1 = (x: number) => x.toFixed(1);
+  if (r.finalDecision === "Incomplete") return "Answer every required question to see the score.";
+  return [
+    r.meter ? `Risk score ${n1(r.score)} (${r.meter.percent}% of the ${n1(r.meter.limit)} approval limit)` : `Risk score ${n1(r.score)}`,
+    `Before mitigation: ${n1(r.unmitigated)}`,
+    `Likelihood ${r.likelihood} of ${r.likelihoodMax} (${r.likelihoodBand})`,
+    `Impact ${r.impact} of ${r.impactMax} (${r.impactBand})`,
+    `Preference multiplier ×${r.preference.toFixed(1)} (max ×${r.preferenceMax.toFixed(1)})`,
+    `Mitigation credit −${Math.round(r.mitigationApplied * 100)}%`,
+    `Band: ${r.band.name} → ${r.band.decision}`,
+  ].join("\n");
+}
+
 /** What the number means, in a line: lower is better, and where the limit is. */
 export function scoreCaption(r: Result, n1: (x: number) => string = (x) => x.toFixed(1)): string {
   if (r.finalDecision === "Incomplete") return "Answer every required question to see it";

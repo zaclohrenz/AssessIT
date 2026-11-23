@@ -62,6 +62,8 @@ The report shows the score as a **percentage of the approval limit**: the score 
 | **Yellow** | Over the limit, but the mitigations the policy still offers could bring it under. |
 | **Red** | Over the limit even with every mitigation, or a hard-stop answer was given. |
 
+**The app shows percentages, not points.** The header, the report and the questionnaire never quote a raw score, a band or a point value on the page: the score is "74% of the approval limit", and each driver says how many percentage points it would take off. The full breakdown (the score, likelihood, impact, preference multiplier, mitigation credit and band) appears when you hover over the percentage. The PDF, Excel export and what's sent for approval keep the exact numbers, so approvers and auditors can see them.
+
 The theoretical maximum (every answer at its worst) isn't shown, because no real vendor is near it and it makes every real score look tiny.
 
 Each answer also carries a small marker for which way it pushes the score: a green circle lowers risk, a yellow diamond adds some, a red triangle adds the most. It follows the points, so it's right whichever way a question is worded. A mitigation you don't have shows no marker, because "no credit" isn't a bad answer.
