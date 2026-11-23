@@ -186,6 +186,23 @@ describe("the screen speaks in percent; the numbers are one hover away", () => {
     expect(b.against).toContain(`${r.meter!.percent}% of the approval limit`);
     for (const x of b.parts) expect(x.fill).toBeGreaterThanOrEqual(0), expect(x.fill).toBeLessThanOrEqual(1);
   });
+  it("compares the score to the approval limit: the limit, the score, over or under by how much, and whether mitigations can fix it", () => {
+    const b = scoreBreakdown(r, policy)!;
+    const l = b.limit!;
+    expect(l.limit).toBe(r.meter!.limit.toFixed(1));
+    expect(l.percent).toBe(r.meter!.percent);
+    expect(l.zone).toBe(r.meter!.zone);
+    expect(l.deltaAmount).toBe(`${Math.abs(r.meter!.percent - 100)}%`);
+    expect(l.deltaLabel).toBe(r.meter!.percent > 100 ? "Over the limit by" : "Under the limit by");
+    expect(l.note).toMatch(/limit/);
+    expect(l.markAt).toBeGreaterThan(0), expect(l.markAt).toBeLessThanOrEqual(1);
+    expect(l.fillTo).toBeLessThanOrEqual(1);
+    const over = { ...r, meter: { ...r.meter!, percent: 119, zone: "yellow" as const } };
+    expect(scoreBreakdown(over, policy)!.limit).toMatchObject({ deltaLabel: "Over the limit by", deltaAmount: "19%", note: "Mitigations could still bring this under the limit." });
+    const red = { ...r, meter: { ...r.meter!, percent: 119, zone: "red" as const } };
+    expect(scoreBreakdown(red, policy)!.limit!.note).toMatch(/even with every mitigation/i);
+    expect(scoreBreakdown({ ...r, meter: { ...r.meter!, percent: 62, zone: "green" as const } }, policy)!.limit).toMatchObject({ deltaLabel: "Under the limit by", deltaAmount: "38%" });
+  });
   it("explains the preference multiplier and the mitigation cap in words", () => {
     const concerned = fresh();
     concerned.answers.P3 = { response: "No", notes: "", sources: "", origin: "user" }; // a concern, since v4
