@@ -92,6 +92,19 @@ From the original spreadsheet: an enterprise AI assistant with confidential (non
                                         + a mitigation was credited → Approved with Conditions
 ```
 
+## Editing the weights
+
+**Settings → Scoring → Edit weights** opens a page with every question (its full text, not just the ID), the points each answer adds, which questions are on or required, the hard stops, the bands and the overall caps. It's there so a team that uses AssessIT on its own can set the weights to its policy without hand-editing a JSON file.
+
+The defaults follow NIST CSF 2.0, the NIST AI RMF and CISA guidance. They are not meant to be tuned to change the result for one vendor, so the editor makes every change visible:
+
+- Nothing is saved until you press **Save**, and saving needs a written reason (at least 10 characters).
+- Every changed row is highlighted, and the full list of changes against the standard weights is shown before you save.
+- The saved policy carries the date, the reason and the list of changes. Every report, PDF, Excel export and webhook/SharePoint submission says the weights were **edited locally** and adds a review flag with the reason, so an approver sees it.
+- Values are range-checked (for example, points 0–10 for likelihood and impact, mitigation credit 0–50%, the first band starts at 0, and one band must be Denied because it sets the approval limit). A policy imported from a file or URL gets the same numeric checks.
+- If an organization config locks the policy, the page is read-only.
+- The edits live only on this computer. To share them, use **Export policy** or **Export org config**.
+
 ## Where the defaults come from
 
 AssessIT's defaults follow published guidance. **NIST tells you *what* to assess, not how many points each thing is worth.** So the rules are:

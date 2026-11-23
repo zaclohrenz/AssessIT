@@ -4,6 +4,7 @@
 import type { Content, TableCell, TDocumentDefinitions } from "pdfmake/interfaces";
 import { bandFor, compute, draftMessage, formatDate, pathToApproval, summary } from "./engine";
 import { aiAttestationText, APP_VERSION, decisionTone, fmtPts, reviewFlags, scoreCaption, scoreHeadline, ZONE_LABEL } from "./report";
+import { policyLabel } from "./scoring";
 import type { Assessment, OrgSettings, Policy } from "./types";
 
 const NAVY = "#1f3a5f";
@@ -25,7 +26,7 @@ export function reportPdf(policy: Policy, a: Assessment, org: OrgSettings): TDoc
   const r = compute(policy, a);
   const d = a.details;
   const tone = TONES[decisionTone(r.finalDecision)];
-  const flags = reviewFlags(r, a);
+  const flags = reviewFlags(r, a, policy);
   const n1 = (x: number) => x.toFixed(1);
   const pct = (x: number) => `${Math.round(x * 100)}%`;
 
@@ -240,7 +241,7 @@ export function reportPdf(policy: Policy, a: Assessment, org: OrgSettings): TDoc
     pageBreakBefore: (node, rest) => node.headlineLevel === 1 && rest.getFollowingNodesOnPage().length < 2,
     footer: (page: number, pages: number) => ({
       columns: [
-        { text: `AssessIT ${APP_VERSION} · ${policy.name} v${policy.version}`, color: MUTED, fontSize: 7.5 },
+        { text: `AssessIT ${APP_VERSION} · ${policyLabel(policy)}`, color: MUTED, fontSize: 7.5 },
         { text: `Page ${page} of ${pages}`, alignment: "right", color: MUTED, fontSize: 7.5 },
       ],
       margin: [40, 16, 40, 0],

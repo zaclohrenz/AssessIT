@@ -298,3 +298,20 @@ nav button.upd:hover { background: var(--muted-bg); }
 .q .where { color: var(--muted); font-size: 12.5px; }
 .q .means { font-size: 12.5px; margin: 4px 0; padding-left: 8px; border-left: 2px solid var(--line); }
 .q .means b { font-weight: 600; }
+.tag { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--muted-bg); color: var(--muted); }
+.tag.pref { background: var(--warn-bg); color: var(--warn); }
+.tag.warn { background: var(--warn-bg); color: var(--warn); font-weight: 600; }
+.scnote { align-items: flex-start; }
+.sctable input[type=number] { width: 84px; }
+.scf { padding: 10px 0; border-bottom: 1px solid var(--line); border-left: 3px solid transparent; padding-left: 10px; }
+.scf:last-child { border-bottom: 0; }
+.scf.changed { border-left-color: #e0a800; background: var(--warn-bg); }
+.schead { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.scq { flex: 1; min-width: 240px; }
+.scopts { display: flex; gap: 14px; flex-wrap: wrap; margin: 8px 0; }
+.scopt { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.scopt input { width: 76px; }
+.scopt small { color: var(--muted); }
+.scflags { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; align-items: center; }
+.sclist { margin: 6px 0; padding-left: 18px; font-size: 12.5px; max-height: 160px; overflow: auto; }
+.scfoot { position: sticky; bottom: 0; box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.12); }

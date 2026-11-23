@@ -36,7 +36,7 @@ export function navStatus(policy: Policy, a: Assessment, submit: Settings["submi
     ? ["sent", "SENT"]
     : r.finalDecision === "Incomplete" || detailsMissing
       ? ["todo", "TODO"]
-      : reviewFlags(r, a).length
+      : reviewFlags(r, a, policy).length
         ? ["review", "REVIEW"]
         : ["ok", "OK"];
   const settings: Bubble = submitConfigured(submit) ? ["ok", "OK"] : ["todo", "SETUP"];

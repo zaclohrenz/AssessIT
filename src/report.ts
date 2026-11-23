@@ -2,6 +2,7 @@
 
 import pkg from "../package.json";
 import { compute, draftMessage, formatDate, pathToApproval, summary, type Result } from "./engine";
+import { policyEditFlag, policyLabel } from "./scoring";
 import type { Assessment, Details, OrgSettings, Policy } from "./types";
 
 export const APP_VERSION: string = pkg.version;
@@ -55,7 +56,7 @@ export function answersText(policy: Policy, a: Assessment, r: Result): string {
       if (ans?.sources) line += `\n   Sources: ${ans.sources}`;
       return line;
     })
-    .join("\n") + (aiAttestationText(a) ? `\n\n${aiAttestationText(a)}` : "") + `\n\nPolicy: ${policy.name} v${policy.version}`;
+    .join("\n") + (aiAttestationText(a) ? `\n\n${aiAttestationText(a)}` : "") + `\n\nPolicy: ${policyLabel(policy)}`;
 }
 
 export function fmtPts(p: number, section: string): string {
@@ -194,13 +195,15 @@ const changedText = (a: Assessment) =>
     .map((c) => `${c.id}: AI said ${c.ai}, changed to ${c.now}`)
     .join("\n");
 
-export function reviewFlags(r: Result, a: Assessment): string[] {
+export function reviewFlags(r: Result, a: Assessment, policy?: Pick<Policy, "edits">): string[] {
   const flags: string[] = [];
   const missing = missingDetails(a.details);
   if (missing.length) flags.push(`Request details missing: ${missing.join(", ")}.`);
   if (r.requiredUnanswered.length)
     flags.push(`${r.requiredUnanswered.length} required question(s) unanswered (${r.requiredUnanswered.join(", ")}), so the decision is Incomplete.`);
   if (a.details.override && !a.details.overrideJustification.trim()) flags.push("Decision was overridden without a justification.");
+  const edited = policy && policyEditFlag(policy);
+  if (edited) flags.push(edited);
   return flags;
 }
 
@@ -231,10 +234,10 @@ export function listFields(policy: Policy, a: Assessment, org: OrgSettings) {
     DraftMessage: draftMessage(r, a, org),
     Answers: answersText(policy, a, r),
     // Empty when the assessment was complete and reviewed; otherwise what the approver should double-check.
-    ReviewFlags: reviewFlags(r, a).join("\n"),
+    ReviewFlags: reviewFlags(r, a, policy).join("\n"),
     ChangedFromAI: changedText(a),
     // Every raw value from the form, exactly as entered, for audits and reporting.
-    AssessmentJSON: JSON.stringify({ appVersion: APP_VERSION, policy: { name: policy.name, version: policy.version }, assessment: a }),
+    AssessmentJSON: JSON.stringify({ appVersion: APP_VERSION, policy: { name: policy.name, version: policy.version, edits: policy.edits }, assessment: a }),
     Status: STATUSES[0],
   };
 }
@@ -246,7 +249,7 @@ export function webhookPayload(policy: Policy, a: Assessment, org: OrgSettings) 
     appVersion: APP_VERSION,
     submittedAt: new Date().toISOString(),
     organization: org.orgName,
-    reviewFlags: reviewFlags(r, a),
+    reviewFlags: reviewFlags(r, a, policy),
     changedFromAi: changedFromAi(a),
     // Who vouched for AI-proposed answers; null when none came from AI. (Also inside `assessment`.)
     aiReview: aiAnswerIds(a).length ? { answers: aiAnswerIds(a), attestation: a.aiAttestation ?? null } : null,
@@ -268,7 +271,7 @@ export function webhookPayload(policy: Policy, a: Assessment, org: OrgSettings) 
       reReviewDate: r.reReviewDate,
     },
     assessment: a,
-    policy: { name: policy.name, version: policy.version },
+    policy: { name: policy.name, version: policy.version, edits: policy.edits },
   };
 }
 
