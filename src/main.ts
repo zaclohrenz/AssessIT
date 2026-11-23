@@ -5,7 +5,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { bandFor, cautiousChoice, compute, draftMessage, formatDate, isIgnored, optionTone, pathToApproval, summary, toneWords, type Result } from "./engine";
 import { chooseConfig, sanitizeConfig, type ConfigChoice } from "./orgconfig";
 import { reportPdf } from "./pdf";
-import { APP_VERSION, changedFromAi, STATUSES, decisionTone, fmtPts, listFields, REQUIRED_DETAILS, reviewFlags, scoreCaption, scoreHeadline, SHAREPOINT_COLUMNS, webhookPayload, xlsxSheets, ZONE_LABEL } from "./report";
+import { APP_VERSION, changedFromAi, STATUSES, decisionTone, fmtPts, listFields, REQUIRED_DETAILS, reviewFlags, scoreCaptionPlain, scoreHeadline, scoreTooltip, SHAREPOINT_COLUMNS, webhookPayload, xlsxSheets, ZONE_LABEL } from "./report";
 import { extractUrls, linkLabel } from "./links";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -298,8 +298,9 @@ function refreshHeader() {
   const d = S.a.details;
   $("#doc-title")!.textContent = [d.product, d.vendor].filter(Boolean).join(" · ") || "New assessment";
   const tone = decisionTone(r.finalDecision);
-  const score = r.finalDecision === "Incomplete" ? `${r.requiredUnanswered.length} required left` : `${r.score.toFixed(1)} · ${r.band.name}`;
-  $("#score-pill")!.innerHTML = `<span class="pill ${tone}">${esc(r.finalDecision)} <span style="font-weight:400">${esc(score)}</span></span>`;
+  // The app shows a percentage of the approval limit, never raw points; the numbers are one hover away.
+  const score = r.finalDecision === "Incomplete" ? `${r.requiredUnanswered.length} required left` : r.meter ? `${r.meter.percent}%` : r.band.name;
+  $("#score-pill")!.innerHTML = `<span class="pill ${tone}" title="${esc(scoreTooltip(r))}">${esc(r.finalDecision)} <span style="font-weight:400">${esc(score)}</span></span>`;
 }
 
 let renderedTab: Tab | null = null;
@@ -473,11 +474,20 @@ async function runResearch() {
 
 // ---------------- 2. Questionnaire ----------------
 
+/** How far through a section you are. The points it adds are in the hover, not on the page. */
 function sectionTotal(sec: Section): string {
   const r = result();
-  if (sec === "Preference") return `multiplier ×${r.preference.toFixed(1)}`;
-  if (sec === "Mitigation") return `credit ${pct(-r.mitigationApplied)} (cap ${Math.round(policy().maxMitigationCredit * 100)}%)`;
-  return sec === "Likelihood" ? `${r.likelihood} of ${r.likelihoodMax} pts` : `${r.impact} of ${r.impactMax} pts`;
+  const fs = policy().factors.filter((f) => f.section === sec && f.enabled && !isIgnored(f, S.a.answers[f.id]));
+  const done = fs.filter((f) => S.a.answers[f.id]?.response).length;
+  const detail =
+    sec === "Preference"
+      ? `Preference multiplier ×${r.preference.toFixed(1)}`
+      : sec === "Mitigation"
+        ? `Credit ${pct(-r.mitigationApplied)} (cap ${Math.round(policy().maxMitigationCredit * 100)}%)`
+        : sec === "Likelihood"
+          ? `${r.likelihood} of ${r.likelihoodMax} points`
+          : `${r.impact} of ${r.impactMax} points`;
+  return `<span title="${esc(detail)}">${done} of ${fs.length} answered</span>`;
 }
 
 const SECTION_BLURB: Record<Section, string> = {
@@ -720,59 +730,60 @@ function heatMap(r: Result): string {
   const I = Math.max(1, Math.min(12, Math.round(r.impact)));
   let cells = "";
   for (let i = 12; i >= 1; i--) {
-    cells += `<div class="ax">${i}</div>`;
+    cells += `<div class="ax">${i === 12 ? "high" : i === 1 ? "low" : ""}</div>`;
     for (let l = 1; l <= 12; l++) {
       const v = l * i * k;
       const idx = p.bands.indexOf(bandFor(p.bands, "scoreMin", v));
       const color = `var(--band-${Math.min(4, Math.round((idx / Math.max(1, p.bands.length - 1)) * 4))})`;
       const me = l === L && i === I && r.finalDecision !== "Incomplete";
-      cells += `<div class="${me ? "me" : ""}" style="background:${color}" title="Likelihood ${l} × Impact ${i} = ${v.toFixed(1)}">${Math.round(v)}</div>`;
+      cells += `<div class="${me ? "me" : ""}" style="background:${color}" title="Likelihood ${l} × Impact ${i} = ${v.toFixed(1)}"></div>`;
     }
   }
-  cells += `<div class="ax"></div>` + Array.from({ length: 12 }, (_, j) => `<div class="ax">${j + 1}</div>`).join("");
+  cells += `<div class="ax"></div>` + Array.from({ length: 12 }, (_, j) => `<div class="ax">${j === 0 ? "low" : j === 11 ? "high" : ""}</div>`).join("");
   const legend = p.bands
-    .map((b, idx) => `<span><i style="background:var(--band-${Math.min(4, Math.round((idx / Math.max(1, p.bands.length - 1)) * 4))})"></i>${esc(b.name)} (${b.scoreMin}+) → ${esc(b.decision)}</span>`)
+    .map((b, idx) => `<span><i style="background:var(--band-${Math.min(4, Math.round((idx / Math.max(1, p.bands.length - 1)) * 4))})"></i>${esc(b.name)} → ${esc(b.decision)}</span>`)
     .join("");
-  return `<div class="heat">${cells}</div><div class="muted" style="font-size:12px;margin-top:4px">Likelihood → (rows = Impact). Cells include this assessment's preference multiplier and mitigation credit. Outlined = this assessment${r.likelihood > 12 || r.impact > 12 ? " (clamped at 12)" : ""}.</div><div class="legend">${legend}</div>`;
+  return `<div class="heat">${cells}</div><div class="muted" style="font-size:12px;margin-top:4px">Across: how likely an incident is. Up: how bad it would be. Colors include this assessment's preference concerns and mitigations. Outlined = this assessment. Hover a square for its numbers.</div><div class="legend">${legend}</div>`;
+}
+
+/** A score amount as a share of the approval limit, so the page speaks one language (percent). The points are in the hover. */
+function shareOf(r: Result, x: number): string {
+  const base = r.meter?.limit ?? Math.max(r.score, 1e-9);
+  return `${Math.round((x / base) * 100)}%`;
 }
 
 function reportBody(): string {
   const p = policy();
   const r = result();
   const tone = decisionTone(r.finalDecision);
-  const tile = (k: string, v: string, s: string, cls = "") => `<div class="tile ${cls}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+  const tile = (k: string, v: string, s: string, cls = "", tip = "") => `<div class="tile ${cls}"${tip ? ` title="${esc(tip)}"` : ""}><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
   const drivers = r.drivers.length
-    ? `<table><tr><th>#</th><th>Factor</th><th>Section</th><th>Answer</th><th>Score reduction</th><th>Evidence</th></tr>${r.drivers
-        .map((x) => `<tr><td>${x.rank}</td><td>${esc(x.factor.factor)}</td><td>${x.factor.section}</td><td>${esc(x.response)}</td><td class="num">${x.scoreReduction.toFixed(1)}</td><td>${esc(x.evidence)}</td></tr>`)
+    ? `<table><tr><th>#</th><th>Factor</th><th>Section</th><th>Answer</th><th>Would lower the score by</th><th>Evidence</th></tr>${r.drivers
+        .map((x) => `<tr><td>${x.rank}</td><td>${esc(x.factor.factor)}</td><td>${x.factor.section}</td><td>${esc(x.response)}</td><td class="num" title="${x.scoreReduction.toFixed(1)} points">−${shareOf(r, x.scoreReduction)}</td><td>${esc(x.evidence)}</td></tr>`)
         .join("")}</table>`
     : `<p class="muted">No factors are adding to the score.</p>`;
   const mits = r.mitigations.length
-    ? `<table><tr><th>Mitigation</th><th>Credit</th><th>Score reduction</th><th>Evidence</th></tr>${r.mitigations
-        .map((x) => `<tr><td>${esc(x.factor.factor)}</td><td>${fmtPts(x.points, "Mitigation")}</td><td class="num">${x.scoreReduction.toFixed(1)}</td><td>${esc(x.evidence)}</td></tr>`)
+    ? `<table><tr><th>Mitigation</th><th>Credit</th><th>Lowers the score by</th><th>Evidence</th></tr>${r.mitigations
+        .map((x) => `<tr><td>${esc(x.factor.factor)}</td><td>${fmtPts(x.points, "Mitigation")}</td><td class="num" title="${x.scoreReduction.toFixed(1)} points">−${shareOf(r, x.scoreReduction)}</td><td>${esc(x.evidence)}</td></tr>`)
         .join("")}</table>${r.mitigationRaw > p.maxMitigationCredit ? `<p class="muted">Total credit capped at ${Math.round(p.maxMitigationCredit * 100)}% (raw ${Math.round(r.mitigationRaw * 100)}%).</p>` : ""}`
     : `<p class="muted">None credited.</p>`;
   const aiN = aiCount();
   return `
-    <div class="banner ${tone}"><div class="d">${esc(r.finalDecision.toUpperCase())}${r.overridden ? " (OVERRIDE)" : ""}</div><div>${esc(summary(r, S.a))}</div></div>
+    <div class="banner ${tone}" title="${esc(scoreTooltip(r))}"><div class="d">${esc(r.finalDecision.toUpperCase())}${r.overridden ? " (OVERRIDE)" : ""}</div><div>${esc(summary(r, S.a, true))}</div></div>
     ${aiN ? `<div class="status"><span class="dot"></span><div style="flex:1">${aiN} answer${aiN === 1 ? "" : "s"} came from AI research. Look ${aiN === 1 ? "it" : "them"} over before you submit.</div><button class="btn small" data-action="review-ai">Review ${aiN === 1 ? "it" : "them"}</button></div>` : ""}
     ${meterHtml(r)}
     <div class="tiles">
-      ${tile("Risk score", scoreHeadline(r), esc(scoreCaption(r)), r.meter ? `z-${r.meter.zone}` : "")}
-      ${tile("Risk band", esc(r.band.name), `Band policy: ${esc(r.band.decision)}`)}
-      ${tile("Likelihood", String(r.likelihood), `${esc(r.likelihoodBand)} (max ${r.likelihoodMax})`)}
-      ${tile("Impact", String(r.impact), `${esc(r.impactBand)} (max ${r.impactMax})`)}
-      ${tile("Preference multiplier", `×${r.preference.toFixed(1)}`, `base ×${p.basePreferenceMultiplier.toFixed(1)}, max ×${r.preferenceMax.toFixed(1)}`)}
-      ${tile("Mitigation credit", pct(-r.mitigationApplied), `cap ${Math.round(p.maxMitigationCredit * 100)}%`)}
+      ${tile("Risk vs. approval limit", scoreHeadline(r), esc(scoreCaptionPlain(r)), r.meter ? `z-${r.meter.zone}` : "", scoreTooltip(r))}
       ${tile("Required answered", `${r.requiredCount - r.requiredUnanswered.length} / ${r.requiredCount}`, `+ ${r.optionalAnswered} optional answered`)}
-      ${tile("Re-review by", esc(formatDate(r.reReviewDate) || "—"), `every ${r.reReviewMonths} months for this band`)}
+      ${tile("Re-review by", esc(formatDate(r.reReviewDate) || "—"), `every ${r.reReviewMonths} months`)}
     </div>
     <div class="card"><h2>Biggest risk drivers</h2><p class="muted" style="margin-top:-6px">How far the final score would fall if this factor had its lowest-risk answer.</p>${drivers}</div>
     <div class="card"><h2>Mitigations credited</h2>${mits}</div>
     <div class="card"><h2>Hard stops &amp; path to approval</h2><div class="kv">
       <b>Hard stops</b><span>${esc(r.hardStops.join("; ") || "None triggered.")}</span>
-      <b>Path to approval</b><span>${esc(pathToApproval(r, p.maxMitigationCredit))}</span></div></div>
+      <b>Path to approval</b><span>${esc(pathToApproval(r, p.maxMitigationCredit, true))}</span></div></div>
     <div class="card"><h2>Heat map</h2>${heatMap(r)}</div>
-    <div class="card"><h2>Draft outcome message</h2><pre class="msg">${esc(draftMessage(r, S.a, S.settings.org))}</pre></div>`;
+    <div class="card"><h2>Draft outcome message</h2><pre class="msg">${esc(draftMessage(r, S.a, S.settings.org, true))}</pre></div>`;
 }
 
 // ---------------- Settings ----------------
@@ -1408,7 +1419,7 @@ const actions: Record<string, () => unknown> = {
     toast("Summary copied.");
   },
   "copy-msg": async () => {
-    await navigator.clipboard.writeText(draftMessage(result(), S.a, S.settings.org));
+    await navigator.clipboard.writeText(draftMessage(result(), S.a, S.settings.org, true));
     toast("Draft message copied.");
   },
   "webhook-test": async () => {

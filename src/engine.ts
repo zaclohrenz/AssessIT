@@ -355,14 +355,18 @@ export function formatDate(iso: string | null, style: "short" | "monthYear" = "s
   return `${MONTHS[m - 1].slice(0, 3)} ${d}, ${y}`;
 }
 
-export function summary(r: Result, a: Assessment): string {
+/**
+ * `plain` is for the screen: it says where the score sits against the approval limit, in percent, instead
+ * of quoting points and bands. The default keeps the reference workbook's exact wording for exports.
+ */
+export function summary(r: Result, a: Assessment, plain = false): string {
   let s: string;
   if (r.calculatedDecision === "Incomplete") {
     s = `No decision yet: ${r.requiredUnanswered.length} required question(s) unanswered (${r.requiredUnanswered.join(", ")}). Finish the questionnaire.`;
   } else if (r.hardStops.length) {
     s = `Denied by hard-stop rule regardless of score: ${r.hardStops.join("; ")}.`;
   } else {
-    s = `Risk score ${f1(r.score)} lands in the ${r.band.name} band (${r.band.scoreMin}+), which policy maps to ${r.band.decision}.`;
+    s = plain ? plainVerdict(r) : `Risk score ${f1(r.score)} lands in the ${r.band.name} band (${r.band.scoreMin}+), which policy maps to ${r.band.decision}.`;
     if (r.calculatedDecision === "Approved with Conditions")
       s += ` Approval depends on keeping these mitigations in place: ${r.creditedMitigations.join("; ")}.`;
     if (r.drivers.length)
@@ -375,12 +379,27 @@ export function summary(r: Result, a: Assessment): string {
   return s;
 }
 
-export function pathToApproval(r: Result, maxCredit: number): string {
+/** "At 74% of the approval limit, this is within the limit, which policy maps to Approved." */
+function plainVerdict(r: Result): string {
+  if (!r.meter) return `This lands in the ${r.band.name} band, which policy maps to ${r.band.decision}.`;
+  const where = r.meter.percent < 100 ? "within the limit" : "over the limit";
+  return `At ${r.meter.percent}% of the approval limit, this is ${where}, which policy maps to ${r.band.decision}.`;
+}
+
+export function pathToApproval(r: Result, maxCredit: number, plain = false): string {
   if (r.calculatedDecision === "Incomplete") return "Answer the remaining required questions first.";
   if (r.hardStops.length) return "Resolve the hard stop(s) above. The score alone cannot approve this.";
   if (r.denialThreshold === null) return "No band is set to Denied in the policy.";
-  if (r.score < r.denialThreshold) return `Already below the denial line (${r.denialThreshold}).`;
+  if (r.score < r.denialThreshold) return plain ? "Already within the approval limit." : `Already below the denial line (${r.denialThreshold}).`;
   const top = r.drivers[0]?.scoreReduction ?? 0;
+  if (plain) {
+    const share = (x: number) => Math.round((x / r.denialThreshold!) * 100);
+    return (
+      `Needs to fall below 100% of the approval limit (now ${share(r.score)}%). ` +
+      `Resolving the top driver alone would bring it to ${share(r.score - top)}%; ` +
+      `mitigations can remove up to ${Math.round(maxCredit * 100)}% of the score (currently ${Math.round(r.mitigationApplied * 100)}%).`
+    );
+  }
   return (
     `Score must fall below ${r.denialThreshold} (now ${f1(r.score)}). ` +
     `Resolving the top driver alone would bring it to ${f1(r.score - top)}; ` +
@@ -388,11 +407,15 @@ export function pathToApproval(r: Result, maxCredit: number): string {
   );
 }
 
-export function draftMessage(r: Result, a: Assessment, org: OrgSettings): string {
+export function draftMessage(r: Result, a: Assessment, org: OrgSettings, plain = false): string {
   const sw = a.details.product || "[Software]";
   const team = a.details.requestingTeam || "team";
   const when = formatDate(r.reReviewDate, "monthYear");
-  const scoreTxt = `risk score ${f1(r.score)}, ${r.band.name} band`;
+  const scoreTxt = plain
+    ? r.meter
+      ? `${r.meter.percent}% of the approval limit`
+      : `${r.band.name} band`
+    : `risk score ${f1(r.score)}, ${r.band.name} band`;
   switch (r.finalDecision) {
     case "Incomplete":
       return "(Finish the questionnaire to generate a message.)";

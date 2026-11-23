@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { cautiousChoice, compute, optionTone, riskMeter, toneWords } from "../src/engine";
+import { cautiousChoice, compute, draftMessage, optionTone, pathToApproval, riskMeter, summary, toneWords } from "../src/engine";
 import { extractUrls, linkLabel } from "../src/links";
-import { aiAnswerIds, aiAttestationText, answersText, reviewFlags, scoreCaption, scoreHeadline, webhookPayload } from "../src/report";
+import { aiAnswerIds, aiAttestationText, answersText, reviewFlags, scoreCaption, scoreCaptionPlain, scoreHeadline, scoreTooltip, webhookPayload } from "../src/report";
 import defaultPolicy from "../src/policy/default-policy.json";
 import example from "./fixtures/example-assessment.json";
 import type { Assessment, Policy } from "../src/types";
@@ -142,5 +142,45 @@ describe("option colour cue", () => {
   it("describes each tone in words for the tooltip", () => {
     expect(toneWords("bad")).toBe("adds the most risk");
     expect(toneWords("none")).toBe("no credit");
+  });
+});
+
+describe("the screen speaks in percent; the numbers are one hover away", () => {
+  const a = fresh();
+  const r = compute(policy, a);
+  const org2 = { orgName: "Contoso", reviewTeam: "IT Risk", policyLink: "our policy" };
+  it("the plain summary quotes the percentage of the limit, with no score, band or points", () => {
+    const s = summary(r, a, true);
+    expect(s).toMatch(new RegExp(`At ${r.meter!.percent}% of the approval limit`));
+    expect(s).not.toMatch(/Risk score|band \(|\d+\.\d/);
+    // ...while the default keeps the reference workbook's exact wording for exports.
+    expect(summary(r, a)).toMatch(/^Risk score \d+\.\d lands in the \w+( \w+)? band \(\d+\+\)/);
+  });
+  it("says 'over the limit' at or beyond 100%", () => {
+    const over = compute(policy, { ...a, answers: { ...a.answers, P2: { response: "No", notes: "", sources: "", origin: "user" } } });
+    const s = summary({ ...over, meter: { ...over.meter!, percent: 130 }, calculatedDecision: "Denied", hardStops: [] }, a, true);
+    expect(s).toContain("At 130% of the approval limit, this is over the limit");
+  });
+  it("the plain path to approval is in percent of the limit", () => {
+    const over = { ...r, calculatedDecision: "Denied" as const, score: 70, denialThreshold: 58, hardStops: [], meter: { ...r.meter!, percent: 121 } };
+    const text = pathToApproval(over, 0.25, true);
+    expect(text).toMatch(/^Needs to fall below 100% of the approval limit \(now 121%\)/);
+    expect(text).not.toMatch(/\d+\.\d/);
+    expect(pathToApproval(over, 0.25)).toMatch(/Score must fall below 58 \(now 70\.0\)/);
+    expect(pathToApproval({ ...over, score: 30 }, 0.25, true)).toBe("Already within the approval limit.");
+  });
+  it("the plain draft message quotes a percentage, the exported one keeps the score", () => {
+    expect(draftMessage(r, a, org2, true)).toContain(`${r.meter!.percent}% of the approval limit`);
+    expect(draftMessage(r, a, org2, true)).not.toMatch(/risk score|band\)/i);
+    expect(draftMessage(r, a, org2)).toMatch(/risk score \d+\.\d, \w+/);
+  });
+  it("the hover carries every figure the page no longer shows", () => {
+    const t = scoreTooltip(r);
+    for (const part of ["Risk score", "% of the", "Before mitigation", "Likelihood", "Impact", "Preference multiplier", "Mitigation credit", "Band:"]) expect(t).toContain(part);
+    expect(scoreTooltip({ ...r, finalDecision: "Incomplete" })).toMatch(/Answer every required question/);
+  });
+  it("the plain caption has no numbers at all", () => {
+    expect(scoreCaptionPlain(r)).not.toMatch(/\d/);
+    expect(scoreCaptionPlain(r)).toContain("lower is better");
   });
 });
