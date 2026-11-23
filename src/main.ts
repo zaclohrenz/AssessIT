@@ -17,7 +17,7 @@ import {
   orgRules, saveCurrent,
   saveUserSettings, validatePolicy, type OrgConfig, type UserSettings,
 } from "./settings";
-import { clonePolicy, DECISIONS, diffPolicy, reasonProblem, validateScoring, withEdits } from "./scoring";
+import { approvalBandIndex, approvalLimit, clonePolicy, DECISIONS, diffPolicy, maxPossibleScore, newQuestion, reasonProblem, setApprovalLimit, TEXT_LIMITS, validateScoring, withEdits } from "./scoring";
 import type { Answer, Details, Factor, Policy, Reference, Section } from "./types";
 import {
   answerChip,
@@ -108,7 +108,7 @@ const S = {
   submitting: false,
   vuln: loadVuln(),
   /** The scoring editor's working copy. Nothing is saved until the person saves it with a reason. */
-  sc: null as null | { draft: Policy; reason: string },
+  sc: null as null | { draft: Policy; reason: string; tab: "overall" | Section },
   /** Last bubble state per nav item, so a change can "pop". */
   bubbles: {} as Record<string, string>,
 };
@@ -961,9 +961,10 @@ function scoringCard(): string {
     <p class="muted" style="margin-top:0">${RESEARCH_NOTE} See SCORING.md.</p>
     <div class="row"><b>${esc(p.name)} v${esc(p.version)}</b><span class="muted">${policySourceLabel()}</span>${locked ? ` <span class="lock" title="Set by your organization's config">🔒 managed</span>` : ""}
       ${p.edits ? `<span class="tag warn">edited locally</span>` : ""}</div>
+    <p class="muted" style="margin:6px 0 0">Threshold of acceptable risk: <b>${approvalLimit(p) ?? "none"}</b>${approvalLimit(p) !== approvalLimit(baselinePolicy()) ? ` (standard ${approvalLimit(baselinePolicy())})` : ""}. ${p.factors.filter((f) => f.enabled).length} questions on.</p>
     ${p.edits ? `<p class="muted">Changed ${esc(p.edits.at.slice(0, 10))}: “${esc(p.edits.reason)}” (${p.edits.changes.length} change${p.edits.changes.length === 1 ? "" : "s"}). Every report made with these weights says so.</p>` : ""}
     <div class="row" style="margin-top:8px">
-      <button class="btn small" data-action="scoring-open">${locked ? "View weights" : "✎ Edit weights"}</button>
+      <button class="btn small" data-action="scoring-open">${locked ? "View scoring" : "✎ Edit scoring"}</button>
       ${locked ? "" : `<button class="btn small" data-action="policy-import">Import policy…</button>`}
       <button class="btn small" data-action="policy-export">Export policy…</button>
       ${S.user.policy && !locked ? `<button class="btn small" data-action="policy-reset">Back to ${S.remote.config?.policy ? "organization" : "standard"} weights</button>` : ""}
@@ -972,46 +973,114 @@ function scoringCard(): string {
 
 const UNIT: Record<Section, string> = { Likelihood: "pts", Impact: "pts", Preference: "× added", Mitigation: "% credit" };
 const pointsShown = (sec: Section, v: number) => (Number.isFinite(v) ? String(Math.round((sec === "Mitigation" ? v * 100 : v) * 1000) / 1000) : "");
+const SC_TABS: [ScTab, string][] = [["overall", "Threshold & bands"], ["Likelihood", "Likelihood"], ["Impact", "Impact"], ["Preference", "Preferences"], ["Mitigation", "Mitigations"]];
+type ScTab = "overall" | Section;
 
 function scoringPage(): string {
-  const sc = (S.sc ??= { draft: clonePolicy(policy()), reason: "" });
+  const sc = (S.sc ??= { draft: clonePolicy(policy()), reason: "", tab: "overall" });
   const d = sc.draft;
   const ro = isLocked("policy");
   const dis = ro ? " disabled" : "";
-  const num = (attrs: string, v: number | string, extra = "") => `<input type="number" step="any" ${attrs} value="${esc(String(v))}"${dis} ${extra}>`;
-  const globals = `<div class="card"><h2>Overall</h2><div class="grid2">
+  const base = baselinePolicy();
+  const num = (attrs: string, v: number | string) => `<input type="number" step="any" ${attrs} value="${esc(String(v))}"${dis}>`;
+  const txt = (f: Factor, k: string, label: string, hint = "", rows = 2) =>
+    `<label class="f">${label}${hint ? `<small>${hint}</small>` : ""}<textarea rows="${rows}" data-sc="text" data-f="${esc(f.id)}" data-k="${k}"${dis}>${esc(String((f as unknown as Record<string, string | undefined>)[k] ?? ""))}</textarea></label>`;
+
+  const limit = approvalLimit(d) ?? 0;
+  const top = maxPossibleScore(d);
+  const k = approvalBandIndex(d);
+  const lo = k > 0 ? d.bands[k - 1].scoreMin + 1 : 1;
+  const overall = `<div class="card"><h2>Threshold of acceptable risk</h2>
+      <p class="muted" style="margin-top:0">The score at which a vendor stops being approvable. Every percentage in the app is measured against it: 100% is this line. Standard: <b>${approvalLimit(base) ?? "none"}</b>.</p>
+      <div class="slider"><span class="muted">Stricter</span>
+        <input type="range" id="sc-limit" data-sc="limit" min="${lo}" max="${Math.max(top, limit, lo + 1)}" step="1" value="${limit}"${dis} aria-label="Threshold of acceptable risk">
+        <span class="muted">More accepting</span><output id="sc-limit-val"><b>${limit}</b></output></div>
+      <p class="muted" id="sc-limit-note"></p></div>
+    <div class="card"><h2>Overall</h2><div class="grid2">
       <label class="f">Maximum mitigation credit (%)<small>The most the mitigations together can cut a score.</small>${num('data-sc="glob" data-k="maxMitigationCredit"', pointsShown("Mitigation", d.maxMitigationCredit))}</label>
       <label class="f">Base preference multiplier<small>1 = organization preferences add nothing until a concern is found.</small>${num('data-sc="glob" data-k="basePreferenceMultiplier"', d.basePreferenceMultiplier)}</label>
       <label class="f" style="flex-direction:row;gap:8px;align-items:center"><input type="checkbox" data-sc="cond"${d.mitigationsMakeConditional ? " checked" : ""}${dis}> Mitigations make an approval conditional</label>
-    </div></div>`;
-  const bands = `<div class="card"><h2>Bands &amp; decisions</h2>
+    </div></div>
+    <div class="card"><h2>Bands &amp; decisions</h2>
     <table class="sctable"><tr><th>Band</th><th>Score from</th><th>Likelihood from</th><th>Impact from</th><th>Decision</th><th>Re-review (months)</th></tr>
     ${d.bands.map((b, i) => `<tr><td>${esc(b.name)}</td>
       <td>${num(`data-sc="band" data-i="${i}" data-k="scoreMin"`, b.scoreMin)}</td>
       <td>${num(`data-sc="band" data-i="${i}" data-k="likelihoodMin"`, b.likelihoodMin)}</td>
       <td>${num(`data-sc="band" data-i="${i}" data-k="impactMin"`, b.impactMin)}</td>
       <td><select data-sc="band" data-i="${i}" data-k="decision"${dis}>${DECISIONS.map((x) => `<option${b.decision === x ? " selected" : ""}>${x}</option>`).join("")}</select></td>
-      <td>${num(`data-sc="band" data-i="${i}" data-k="reReviewMonths"`, b.reReviewMonths)}</td></tr>`).join("")}</table>
-    <p class="muted">The score where the “Denied” band starts is the approval limit the percentage is measured against.</p></div>`;
-  const factorCard = (f: Factor) => `<div class="scf" id="scf-${esc(f.id)}">
-      <div class="schead"><b>${esc(f.id)}</b><span class="scq">${esc(f.question || f.factor)}</span>
-        <span class="tag ${f.basis === "preference" ? "pref" : ""}">${f.basis === "preference" ? "your organization's value" : "standard"}</span></div>
-      <div class="scopts">${f.options.map((o, i) => `<label class="scopt"><span>${esc(o.label)}</span>${num(`data-sc="pts" data-f="${esc(f.id)}" data-i="${i}"`, pointsShown(f.section, o.points))}<small>${UNIT[f.section]}</small></label>`).join("")}</div>
+      <td>${num(`data-sc="band" data-i="${i}" data-k="reReviewMonths"`, b.reReviewMonths)}</td></tr>`).join("")}</table></div>`;
+
+  const factorCard = (f: Factor) => {
+    const custom = !base.factors.some((x) => x.id === f.id);
+    const fid = esc(f.id);
+    const optRow = (o: Factor["options"][number], i: number) => `<div class="scoptrow">
+        ${custom ? `<input type="text" class="sclabel" data-sc="label" data-f="${fid}" data-i="${i}" value="${esc(o.label)}" maxlength="${TEXT_LIMITS.label}"${dis} aria-label="Answer">` : `<span class="sclabel">${esc(o.label)}</span>`}
+        ${num(`data-sc="pts" data-f="${fid}" data-i="${i}"`, pointsShown(f.section, o.points))}<small>${UNIT[f.section]}</small>
+        <input type="text" class="schint" data-sc="hint" data-f="${fid}" data-i="${i}" value="${esc(o.hint ?? "")}" placeholder="What choosing this means" maxlength="${TEXT_LIMITS.hint}"${dis} aria-label="Hint for ${esc(o.label)}">
+        ${custom && !ro && f.options.length > 2 ? `<button class="btn small" data-scact="delopt" data-f="${fid}" data-i="${i}" title="Remove this answer">✕</button>` : ""}</div>`;
+    return `<div class="scf" id="scf-${fid}">
+      <div class="schead"><b>${fid}</b><span class="scq">${esc(f.question || f.factor)}</span>
+        <span class="tag ${f.basis === "preference" ? "pref" : ""}">${custom ? "added by you" : f.basis === "preference" ? "your organization's value" : "standard"}</span></div>
+      <div class="scopts">${f.options.map(optRow).join("")}</div>
+      ${custom && !ro ? `<div class="row" style="margin-bottom:6px"><button class="btn small" data-scact="addopt" data-f="${fid}">+ Add an answer</button></div>` : ""}
       <div class="scflags">
-        <label><input type="checkbox" data-sc="en" data-f="${esc(f.id)}"${f.enabled ? " checked" : ""}${dis}> On</label>
-        <label><input type="checkbox" data-sc="req" data-f="${esc(f.id)}"${f.required ? " checked" : ""}${f.enabled ? "" : " disabled"}${dis}> Required</label>
-        <label>Hard stop <select data-sc="hs" data-f="${esc(f.id)}"${dis}><option value="">none</option>${f.options.map((o) => `<option${f.hardStop === o.label ? " selected" : ""}>${esc(o.label)}</option>`).join("")}</select></label>
+        <label><input type="checkbox" data-sc="en" data-f="${fid}"${f.enabled ? " checked" : ""}${dis}> On</label>
+        <label><input type="checkbox" data-sc="req" data-f="${fid}"${f.required ? " checked" : ""}${f.enabled ? "" : " disabled"}${dis}> Required</label>
+        <label>Hard stop <select data-sc="hs" data-f="${fid}"${dis}><option value="">none</option>${f.options.map((o) => `<option${f.hardStop === o.label ? " selected" : ""}>${esc(o.label)}</option>`).join("")}</select></label>
+        ${custom && !ro ? `<button class="btn small" data-scact="del" data-f="${fid}" style="margin-left:auto">Delete question</button>` : ""}
       </div>
-      ${f.justification ? `<details><summary>Why this weight</summary><p class="muted">${esc(f.justification)}</p></details>` : ""}</div>`;
-  const sections = SECTIONS.map((sec) => `<div class="card"><h2>${SECTION_LABEL[sec]}</h2>${d.factors.filter((f) => f.section === sec).map(factorCard).join("")}</div>`).join("");
+      <details class="scedit"><summary>Edit wording, guidance and settings</summary>
+        <label class="f">Short name<input type="text" data-sc="text" data-f="${fid}" data-k="factor" value="${esc(f.factor)}" maxlength="${TEXT_LIMITS.factor}"${dis}></label>
+        ${txt(f, "question", "Question", `Word it so “Yes” is the good answer, like the standard questions.`)}
+        ${txt(f, "guidance", "How to find the answer", "Shown under the question and given to the AI.", 3)}
+        ${txt(f, "lookWhere", "Common places to look", "Examples, not a limit.")}
+        ${txt(f, "unsure", "If you can't tell", "Overrides the standard “check the places above” line.")}
+        ${txt(f, "justification", "Why it matters", "", 3)}
+        <div class="grid2">
+          <label class="f">Where the answer comes from<select data-sc="research" data-f="${fid}"${dis}><option value="public"${f.research === "public" ? " selected" : ""}>Public sources (AI can research it)</option><option value="internal"${f.research === "internal" ? " selected" : ""}>Inside the organization</option></select></label>
+          <label class="f">Basis<select data-sc="basis" data-f="${fid}"${dis}><option value="standard"${f.basis === "standard" ? " selected" : ""}>Standard (published guidance)</option><option value="preference"${f.basis === "preference" ? " selected" : ""}>Organization's value choice</option></select></label>
+        </div>
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" data-sc="ign" data-f="${fid}"${f.ignorable ? " checked" : ""}${dis}> Assessors may ignore this question for one assessment</label>
+      </details></div>`;
+  };
+  const section = (sec: Section) => `<div class="card"><h2>${SECTION_LABEL[sec]}</h2>
+      ${d.factors.filter((f) => f.section === sec).map(factorCard).join("") || `<p class="muted">No questions.</p>`}
+      ${ro ? "" : `<div class="row" style="margin-top:10px"><button class="btn small" data-scact="add" data-sec="${sec}">+ Add a question</button><span class="muted">It appears in the questionnaire after you save.</span></div>`}</div>`;
+  const tabs = `<div class="sctabs" role="tablist">${SC_TABS.map(([t, label]) => `<button class="${sc.tab === t ? "active" : ""}" role="tab" aria-selected="${sc.tab === t}" data-sctab="${t}">${label}</button>`).join("")}</div>`;
   return `<div class="row"><button class="btn small" data-action="scoring-discard">← Settings</button></div>
-    <div><h1>Scoring weights</h1>
-      <p class="lede">Every question, with the points each answer adds. ${ro ? "Your organization manages these, so they are read-only here." : "Edit them here without going back and forth to the questionnaire."}</p></div>
+    <div><h1>Scoring</h1>
+      <p class="lede">${ro ? "Your organization manages these, so they are read-only here." : "The whole policy, editable here: the threshold, the points, and each question's wording. Nothing changes until you save."}</p></div>
     <div class="status warn scnote"><div><b>Please don't tune these for one vendor.</b> ${RESEARCH_NOTE} Changing them changes every assessment made on this computer. Each change needs a written reason, and every report, PDF and export made with edited weights says they were edited, what changed and why.</div></div>
-    ${globals}${bands}${sections}
+    ${tabs}
+    ${sc.tab === "overall" ? overall : section(sc.tab)}
     ${ro ? "" : `<div class="scfoot card"><div id="sc-status"></div>
       <label class="f">Why are you changing these?<textarea id="sc-reason" data-sc="reason" rows="2" placeholder="e.g., Our regulator treats customer-data retention as a hard stop.">${esc(sc.reason)}</textarea></label>
-      <div class="row" style="margin-top:8px"><button class="btn primary" id="sc-save" data-action="scoring-save" disabled>Save weights</button><button class="btn" data-action="scoring-discard">Discard changes</button></div></div>`}`;
+      <div class="row" style="margin-top:8px"><button class="btn primary" id="sc-save" data-action="scoring-save" disabled>Save</button><button class="btn" data-action="scoring-discard">Discard changes</button></div></div>`}`;
+}
+
+function scoringClick(ds: DOMStringMap) {
+  const sc = S.sc;
+  if (!sc || isLocked("policy")) return;
+  const d = sc.draft;
+  const f = ds.f ? d.factors.find((x) => x.id === ds.f) : undefined;
+  if (ds.sctab) sc.tab = ds.sctab as typeof sc.tab;
+  else if (ds.scact === "add") {
+    const q = newQuestion(d, ds.sec as Section);
+    d.factors.push(q);
+    // Keep each section's questions together, in order.
+    d.factors.sort((x, y) => SECTIONS.indexOf(x.section) - SECTIONS.indexOf(y.section));
+  } else if (ds.scact === "del" && f) {
+    d.factors = d.factors.filter((x) => x !== f);
+  } else if (ds.scact === "addopt" && f) {
+    let n = f.options.length + 1;
+    while (f.options.some((o) => o.label === `Answer ${n}`)) n++;
+    f.options.push({ label: `Answer ${n}`, points: 0 });
+  } else if (ds.scact === "delopt" && f && f.options.length > 2) {
+    const [gone] = f.options.splice(Number(ds.i), 1);
+    if (f.hardStop === gone.label) f.hardStop = null;
+  }
+  renderPage();
+  refreshScoring();
 }
 
 function refreshScoring() {
@@ -1027,6 +1096,11 @@ function refreshScoring() {
       : changes.length
         ? `<details open><summary><b>${changes.length} change${changes.length === 1 ? "" : "s"}</b> from the ${S.remote.config?.policy ? "organization" : "standard"} weights</summary><ul class="sclist">${changes.map((c) => `<li>${esc(c)}</li>`).join("")}</ul></details>${rp ? `<p class="muted">${esc(rp)}</p>` : ""}`
         : `<p class="muted">No changes yet.</p>`;
+  const note = $("#sc-limit-note");
+  if (note) {
+    const now = approvalLimit(sc.draft), was = approvalLimit(baselinePolicy());
+    note.textContent = now === null || was === null || now === was ? "This is the standard threshold." : now > was ? `More accepting than standard: vendors up to ${now - 1} would be approvable, ${now - was} higher than standard.` : `Stricter than standard: vendors scoring ${now} or more are not approvable, ${was - now} lower than standard.`;
+  }
   const save = $<HTMLButtonElement>("#sc-save");
   if (save) save.disabled = !!errs.length || !changes.length || !!rp;
   const hit = new Set(changes.map((c) => c.split(/[ :]/)[0]));
@@ -1065,6 +1139,33 @@ function scoringInput(el: HTMLInputElement | HTMLSelectElement) {
     else (b as unknown as Record<string, number>)[ds.k!] = n();
   } else if (ds.sc === "reason") {
     sc.reason = el.value;
+  } else if (ds.sc === "limit") {
+    const v = setApprovalLimit(d, Number(el.value));
+    // Keep the numbers on this page in step: the band cut-offs move with the limit.
+    document.querySelectorAll<HTMLInputElement>('[data-sc=band][data-k=scoreMin]').forEach((inp) => {
+      const b = d.bands[Number(inp.dataset.i)];
+      if (b) inp.value = String(b.scoreMin);
+    });
+    const out = $("#sc-limit-val");
+    if (out) out.innerHTML = `<b>${v}</b>`;
+  } else if (f && ds.sc === "text") {
+    (f as unknown as Record<string, string>)[ds.k!] = el.value;
+    if (ds.k === "question" || ds.k === "factor") {
+      const q = el.closest(".scf")?.querySelector(".scq");
+      if (q) q.textContent = f.question || f.factor;
+    }
+  } else if (f && ds.sc === "hint") {
+    f.options[Number(ds.i)].hint = el.value;
+  } else if (f && ds.sc === "label") {
+    const o = f.options[Number(ds.i)];
+    if (f.hardStop === o.label) f.hardStop = el.value;
+    o.label = el.value;
+  } else if (f && ds.sc === "research") {
+    f.research = el.value as Factor["research"];
+  } else if (f && ds.sc === "basis") {
+    f.basis = el.value as Factor["basis"];
+  } else if (f && ds.sc === "ign") {
+    f.ignorable = (el as HTMLInputElement).checked;
   }
   refreshScoring();
 }
@@ -1734,9 +1835,10 @@ const actions: Record<string, () => unknown> = {
 };
 
 function onClick(e: MouseEvent) {
-  const el = (e.target as HTMLElement).closest<HTMLElement>("[data-tab],[data-action],[data-opt],[data-ignore],[data-vopt],[data-filter],[data-url],[data-section]");
+  const el = (e.target as HTMLElement).closest<HTMLElement>("[data-tab],[data-action],[data-opt],[data-ignore],[data-vopt],[data-filter],[data-url],[data-section],[data-scact],[data-sctab]");
   if (!el) return;
   const ds = el.dataset;
+  if (ds.sctab || ds.scact) return scoringClick(ds);
   if (ds.vopt) {
     const key = ds.vopt as VulnKey;
     (S.vuln.answers as Record<string, string>)[key] = ds.val!;

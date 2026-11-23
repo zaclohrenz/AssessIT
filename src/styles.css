@@ -315,3 +315,16 @@ nav button.upd:hover { background: var(--muted-bg); }
 .scflags { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; align-items: center; }
 .sclist { margin: 6px 0; padding-left: 18px; font-size: 12.5px; max-height: 160px; overflow: auto; }
 .scfoot { position: sticky; bottom: 0; box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.12); }
+.slider { display: flex; align-items: center; gap: 10px; margin: 8px 0 2px; }
+.slider input[type=range] { flex: 1; min-width: 120px; }
+.slider output { min-width: 3ch; text-align: right; font-size: 18px; font-variant-numeric: tabular-nums; }
+.sctabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+.sctabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 12px; cursor: pointer; color: var(--muted); font: inherit; font-size: 13px; }
+.sctabs button.active { color: var(--navy); border-bottom-color: var(--navy); font-weight: 600; }
+.scoptrow { display: flex; align-items: center; gap: 6px; width: 100%; }
+.sclabel { width: 140px; font-size: 13px; }
+.schint { flex: 1; min-width: 160px; }
+.scopts { flex-direction: column; gap: 6px; }
+.scedit { margin-top: 8px; }
+.scedit > summary { cursor: pointer; font-size: 13px; color: var(--navy); }
+.scedit label.f { margin: 8px 0; }

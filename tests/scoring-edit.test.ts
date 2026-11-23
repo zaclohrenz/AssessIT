@@ -111,3 +111,92 @@ describe("policies that come in from files or URLs", () => {
     expect(validatePolicy(p).edits).toBeUndefined();
   });
 });
+
+import { approvalLimit, maxPossibleScore, newQuestion, setApprovalLimit } from "../src/scoring";
+
+describe("threshold of acceptable risk", () => {
+  it("is where the first Denied band starts, and matches the engine's limit", () => {
+    const p = clonePolicy(base());
+    const a = blankAssessment();
+    expect(approvalLimit(p)).toBe(58);
+    p.factors.forEach((f) => !f.enabled || (a.answers[f.id] = { response: f.options[0].label, notes: "", sources: "", origin: "user" }));
+    expect(compute(p, a).meter?.limit).toBe(58);
+    setApprovalLimit(p, 70);
+    expect(compute(p, a).meter?.limit).toBe(70);
+  });
+
+  it("slides the bands above it so they keep their spacing, and stays above the band below", () => {
+    const p = clonePolicy(base());
+    const gaps = p.bands.map((b, i) => (i ? b.scoreMin - p.bands[i - 1].scoreMin : 0));
+    setApprovalLimit(p, 80);
+    expect(p.bands.map((b) => b.scoreMin)).toEqual([0, 29, 80, 109, 138]);
+    expect(p.bands.map((b, i) => (i ? b.scoreMin - p.bands[i - 1].scoreMin : 0)).slice(3)).toEqual(gaps.slice(3));
+    expect(setApprovalLimit(p, 1)).toBe(30);
+    expect(setApprovalLimit(p, 99999)).toBe(1000);
+    expect(validateScoring(p).join(" ")).toMatch(/cut-off/); // 1000 pushes later bands past the cap: the editor refuses to save it
+  });
+
+  it("the slider's top is the highest score the weights can produce", () => {
+    expect(maxPossibleScore(base())).toBeGreaterThan(58);
+    const p = clonePolicy(base());
+    p.factors.forEach((f) => (f.enabled = f.section === "Mitigation"));
+    expect(maxPossibleScore(p)).toBe(0);
+  });
+});
+
+describe("adding and rewording questions", () => {
+  it("adds a question with the next free ID per section, valid once it has wording", () => {
+    const p = clonePolicy(base());
+    const q1 = newQuestion(p, "Likelihood");
+    expect(q1.id).toMatch(/^L\d+$/);
+    expect(p.factors.some((f) => f.id === q1.id)).toBe(false);
+    q1.question = "Does the vendor publish an uptime history?";
+    p.factors.push(q1);
+    const q2 = newQuestion(p, "Likelihood");
+    expect(q2.id).not.toBe(q1.id);
+    expect(newQuestion(p, "Mitigation").id).toMatch(/^M\d+$/);
+    expect(validateScoring(p)).toEqual([]);
+    expect(diffPolicy(base(), p)[0]).toMatch(new RegExp(`^${q1.id} added: “Does the vendor publish`));
+  });
+
+  it("scores an added question and asks it in the questionnaire", () => {
+    const p = clonePolicy(base());
+    const q = newQuestion(p, "Likelihood");
+    q.question = "Does the vendor publish an uptime history?";
+    q.options = [{ label: "Yes", points: 0 }, { label: "No", points: 2 }];
+    p.factors.push(q);
+    const a = blankAssessment();
+    const without = compute(p, a).likelihoodMax;
+    expect(without).toBeGreaterThan(compute(base(), a).likelihoodMax - 1);
+    a.answers[q.id] = { response: "No", notes: "", sources: "", origin: "user" };
+    expect(compute(p, a).likelihood).toBe(compute(base(), a).likelihood + 2);
+  });
+
+  it("catches empty or duplicate wording and labels, and over-long text", () => {
+    const p = clonePolicy(base());
+    const q = newQuestion(p, "Impact");
+    p.factors.push(q);
+    expect(validateScoring(p).join(" ")).toMatch(/needs question wording/);
+    q.question = "x".repeat(401);
+    expect(validateScoring(p).join(" ")).toMatch(/longer than 400/);
+    q.question = "Fine?";
+    q.options[1].label = "yes";
+    expect(validateScoring(p).join(" ")).toMatch(/same label/);
+    q.options[1].label = "";
+    expect(validateScoring(p).join(" ")).toMatch(/needs a label/);
+    q.options[1].label = "No";
+    p.factors.push({ ...q });
+    expect(validateScoring(p).join(" ")).toMatch(/share an ID/);
+  });
+
+  it("records rewording, removals and answer changes against the standard", () => {
+    const p = clonePolicy(base());
+    p.factors[0].question = "A different question?";
+    p.factors[0].options[0].hint = "something else";
+    p.factors.splice(1, 1);
+    const d = diffPolicy(base(), p);
+    expect(d).toContain(`${base().factors[0].id} question reworded`);
+    expect(d.join("\n")).toMatch(/hint reworded/);
+    expect(d).toContain(`${base().factors[1].id} removed`);
+  });
+});
