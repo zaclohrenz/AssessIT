@@ -49,13 +49,13 @@ export function answersText(policy: Policy, a: Assessment, r: Result): string {
     .filter((f) => f.factor.enabled)
     .map((f) => {
       const ans = a.answers[f.factor.id];
-      const src = ans?.origin === "ai" ? " [AI, not reviewed]" : "";
+      const src = ans?.origin === "ai" ? " [AI]" : "";
       let line = f.status === "Ignored" ? `${f.factor.id} ${f.factor.factor}: (ignored, not scored)` : `${f.factor.id} ${f.factor.factor}: ${f.response || "(blank)"} (${fmtPts(f.points, f.factor.section)})${src}`;
       if (ans?.notes) line += `\n   ${ans.notes}`;
       if (ans?.sources) line += `\n   Sources: ${ans.sources}`;
       return line;
     })
-    .join("\n") + `\n\nPolicy: ${policy.name} v${policy.version}`;
+    .join("\n") + (aiAttestationText(a) ? `\n\n${aiAttestationText(a)}` : "") + `\n\nPolicy: ${policy.name} v${policy.version}`;
 }
 
 export function fmtPts(p: number, section: string): string {
@@ -70,12 +70,49 @@ export const REQUIRED_DETAILS: [keyof Details, string][] = [
   ["vendor", "Vendor name"],
   ["product", "Product"],
   ["plan", "Plan / tier"],
-  ["assessors", "Assessor(s)"],
+  ["assessors", "Your name"],
   ["intendedUse", "Intended use"],
 ];
 
 export const missingDetails = (d: Details): string[] =>
   REQUIRED_DETAILS.filter(([k]) => !String(d[k] ?? "").trim()).map(([, label]) => label);
+
+/** The big number on the score tile: a percent of the approval limit when the policy has one. */
+export function scoreHeadline(r: Result): string {
+  if (r.finalDecision === "Incomplete") return "—";
+  return r.meter ? `${r.meter.percent}%` : r.score.toFixed(1);
+}
+
+/** What the number means, in a line: lower is better, and where the limit is. */
+export function scoreCaption(r: Result, n1: (x: number) => string = (x) => x.toFixed(1)): string {
+  if (r.finalDecision === "Incomplete") return "Answer every required question to see it";
+  const before = `${n1(r.unmitigated)} before mitigation`;
+  return r.meter ? `${n1(r.score)} of ${n1(r.meter.limit)} allowed · lower is better · ${before}` : `lower is better · ${before}`;
+}
+
+export const ZONE_LABEL = {
+  green: "Within the approval limit",
+  yellow: "Over the limit, but more mitigations could bring it under",
+  red: "Over the limit, even with every mitigation",
+} as const;
+
+/** Answers still marked as coming from AI research (a person editing one makes it theirs). */
+export const aiAnswerIds = (a: Assessment): string[] =>
+  Object.entries(a.answers)
+    .filter(([, x]) => x.origin === "ai" && (x.response || x.notes))
+    .map(([id]) => id);
+
+/** One sentence for reports and exports about whether the assessor agreed with the AI's answers. Empty when AI wasn't used. */
+export function aiAttestationText(a: Assessment): string {
+  const ids = aiAnswerIds(a);
+  if (!ids.length) return "";
+  const n = `${ids.length} answer${ids.length === 1 ? "" : "s"} came from AI research (${ids.join(", ")})`;
+  const at = a.aiAttestation;
+  if (!at) return `${n}. The assessor didn't tick the box to say they agree with them.`;
+  const when = at.at.slice(0, 10);
+  const who = a.details.assessors.trim() || at.by || "The assessor";
+  return `${n}. ${who} agreed with them (${when}).`;
+}
 
 /**
  * Answers a person changed after AI research proposed something else. Not a problem by itself
@@ -98,9 +135,6 @@ export function reviewFlags(r: Result, a: Assessment): string[] {
   if (missing.length) flags.push(`Request details missing: ${missing.join(", ")}.`);
   if (r.requiredUnanswered.length)
     flags.push(`${r.requiredUnanswered.length} required question(s) unanswered (${r.requiredUnanswered.join(", ")}), so the decision is Incomplete.`);
-  const ai = Object.entries(a.answers).filter(([, x]) => x.origin === "ai" && (x.response || x.notes));
-  if (ai.length)
-    flags.push(`${ai.length} answer(s) came from AI research and weren't reviewed by a person (${ai.map(([id]) => id).join(", ")}).`);
   if (a.details.override && !a.details.overrideJustification.trim()) flags.push("Decision was overridden without a justification.");
   return flags;
 }
@@ -149,6 +183,8 @@ export function webhookPayload(policy: Policy, a: Assessment, org: OrgSettings) 
     organization: org.orgName,
     reviewFlags: reviewFlags(r, a),
     changedFromAi: changedFromAi(a),
+    // Who vouched for AI-proposed answers; null when none came from AI. (Also inside `assessment`.)
+    aiReview: aiAnswerIds(a).length ? { answers: aiAnswerIds(a), attestation: a.aiAttestation ?? null } : null,
     fields: listFields(policy, a, org),
     result: {
       score: r.score,
@@ -189,11 +225,14 @@ export function xlsxSheets(policy: Policy, a: Assessment, org: OrgSettings) {
       subtitle: `${d.product || "[Software]"} · ${d.vendor || "[Vendor]"} · assessed ${formatDate(d.assessmentDate)} by ${d.assessors || "[assessor]"}`,
       widths: [28, 22, 16, 12, 16, 70],
       sections: [
-        { heading: "Decision", rows: [[r.finalDecision.toUpperCase() + (r.overridden ? " (OVERRIDE)" : ""), summary(r, a)]] },
+        {
+          heading: "Decision",
+          rows: [[r.finalDecision.toUpperCase() + (r.overridden ? " (OVERRIDE)" : ""), summary(r, a)], ...(aiAttestationText(a) ? [["AI review", aiAttestationText(a)]] : [])],
+        },
         {
           heading: "Scores",
           rows: [
-            ["Risk score", n1(r.score), `of ${r.maxScore.toFixed(0)} max · ${n1(r.unmitigated)} before mitigation`],
+            ["Risk score", r.meter ? `${r.meter.percent}% of limit` : n1(r.score), scoreCaption(r, n1)],
             ["Risk band", r.band.name, `Band policy: ${r.band.decision}`],
             ["Likelihood", String(r.likelihood), `${r.likelihoodBand} (max ${r.likelihoodMax})`],
             ["Impact", String(r.impact), `${r.impactBand} (max ${r.impactMax})`],

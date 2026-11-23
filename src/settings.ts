@@ -38,15 +38,14 @@ export interface OrgRules {
   allowOverride: boolean;
   /** false = can't submit with open issues ("Submit YOLO") */
   allowYolo: boolean;
-  /** false = no one-click "Mark all AI answers reviewed"; each answer is reviewed on its own */
-  allowBulkReview: boolean;
 }
 
-export const DEFAULT_RULES: OrgRules = { allowOverride: true, allowYolo: true, allowBulkReview: true };
+export const DEFAULT_RULES: OrgRules = { allowOverride: true, allowYolo: true };
 
 /** An org config file: any subset of Settings, plus a few distribution options. */
 export interface OrgConfig {
-  assessitConfig: 1;
+  /** 1 = original format. 2 = needs AssessIT 0.2+ (default policy v4, where some Yes/No answers turned around), so older apps reject it and keep their last good copy. */
+  assessitConfig: 1 | 2;
   name?: string;
   /**
    * true = users can't change anything this file provides; or a list of the parts to lock.
@@ -205,15 +204,44 @@ export function blankAssessment(): Assessment {
   };
 }
 
-/** Older files called the Organization-preference questions C1–C3 ("Culture"); they're P1–P3 now. */
-export function migrateAssessment(a: Assessment): Assessment {
+/**
+ * Default policy v4 rewrote negated questions as normal ones ("Does the vendor lack X?" became "Does the
+ * vendor have X?"), so Yes and No swapped meaning on these. Answers made under v3 are swapped to match.
+ */
+export const FLIPPED_IN_V4 = ["L1", "L5", "L10", "L11", "L12", "L14", "L15", "P1", "P2", "P3", "P6"];
+
+const swapYesNo = (v: string | undefined) => (v === "Yes" ? "No" : v === "No" ? "Yes" : v);
+
+/**
+ * Brings an older assessment up to date. Older files called the Organization-preference questions C1–C3
+ * ("Culture"); they're P1–P3 now. And answers made under the default policy before v4 get Yes/No swapped on
+ * the questions v4 turned around. That only happens under the built-in default policy: answers made under
+ * someone's own policy are left exactly as they were. Answers are stamped with the policy version so this
+ * runs once.
+ */
+export function migrateAssessment(a: Assessment, policy?: Policy): Assessment {
   for (const n of ["1", "2", "3"]) {
     const old = a.answers[`C${n}`];
     if (old && !a.answers[`P${n}`]) a.answers[`P${n}`] = old;
     delete a.answers[`C${n}`];
   }
+  if (policy && policy.name === (defaultPolicy as Policy).name) {
+    const was = a.policyVersion === undefined ? 3 : Number(a.policyVersion);
+    if (was < 4 && Number(policy.version) >= 4) {
+      for (const id of FLIPPED_IN_V4) {
+        const ans = a.answers[id];
+        if (!ans) continue;
+        ans.response = swapYesNo(ans.response) ?? "";
+        if (ans.aiResponse) ans.aiResponse = swapYesNo(ans.aiResponse);
+      }
+    }
+    a.policyVersion = policy.version;
+  } else if (policy && a.policyVersion === undefined) {
+    // Made under someone's own policy: whatever its Yes/No meant, it isn't ours to swap, now or later.
+    a.policyVersion = "custom";
+  }
   return a;
 }
 
-export const loadCurrent = (): Assessment => migrateAssessment(read<Assessment>(CURRENT_KEY) ?? blankAssessment());
+export const loadCurrent = (): Assessment => read<Assessment>(CURRENT_KEY) ?? blankAssessment();
 export const saveCurrent = (a: Assessment) => write(CURRENT_KEY, a);

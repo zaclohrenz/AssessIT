@@ -40,14 +40,13 @@ describe("left-pane status bubbles", () => {
     expect(navStatus(policy, a, hook).questions).toEqual(["todo", "TODO 1"]);
   });
 
-  it("unreviewed AI answers show REVIEW until a person touches them", () => {
+  it("AI answers are a reminder, never a to-do: nothing is held up while some are still the AI's", () => {
     const a = fresh();
     const f = policy.factors.find((x) => x.section === "Impact")!;
     a.answers[f.id].origin = "ai";
-    expect(sectionStatus(policy, a, "Impact")).toEqual(["review", "REVIEW 1"]);
-    expect(navStatus(policy, a, hook).report).toEqual(["review", "REVIEW"]);
-    a.answers[f.id].origin = "user";
     expect(sectionStatus(policy, a, "Impact")).toEqual(["ok", "OK"]);
+    expect(navStatus(policy, a, hook).questions).toEqual(["ok", "OK"]);
+    expect(navStatus(policy, a, hook).report).toEqual(["ok", "OK"]);
   });
 
   it("settings need a submit destination; submitted shows SENT", () => {

@@ -69,13 +69,21 @@ Admins can set a managed URL users can't override in `/etc/assessit/config-url`.
 - **Claude Code (automatic).** If you have a Claude subscription, AssessIT runs your own [Claude Code](https://claude.com/product/claude-code) in the background with web search and web fetch only: no file access, no shell, no MCP servers. You can watch each search as it happens. If Claude Code isn't set up, the **Install & sign in** button opens a Terminal window that does it for you.
 - **Any other AI (copy & paste).** Click **Copy prompt**, paste it into ChatGPT, Gemini, Copilot or any chat that can browse the web, then paste the whole reply back. AssessIT extracts the answers and checks every answer against the allowed options.
 
-AI answers stay tagged **AI · confidence** until a person reviews or edits them, and questions only your organization can answer are flagged **Confirm internally**. Answers you typed are never overwritten.
+AI answers stay tagged **AI · confidence** until you edit them, and questions only your organization can answer are flagged **Confirm internally**. Answers you typed are never overwritten.
+
+**You're the one vouching for the result.** When any answer came from AI, the report reminds you to look the answers over and offers a short tick-box, *I agree with the AI's research*. It never blocks submitting. If you tick it, your name and the date go into the PDF, Excel export and submission, so approvers can see you agreed; if not, they're told the box wasn't ticked. Assessments with no AI answers don't show it. The notes and source links under each answer are there for the look-over.
 
 ## How the score works
 
 ```
 Risk Score = Likelihood × Impact × Preference multiplier × (1 − Mitigation credit)
 ```
+
+The report shows the score as a **percentage of the approval limit** (the score where your policy starts denying; 58 in the defaults), so lower is better and 100% is the line. **Green** is under the limit. **Yellow** is over it, but the mitigations your policy still offers could bring it under. **Red** is over it even with every mitigation, or a hard stop was hit.
+
+Not sure about a question? The line under it says what to do, and a gap is never scored as a clean bill of health. Questions that ask *"does the vendor have X?"* (a certification, SSO, a deletion promise) give credit only for what you can show, so no evidence means **No**. Questions that ask *"did something bad happen?"* (a breach, a lawsuit, an ownership change) have an **Unknown** answer that counts partway against approval: *No* means you checked at least two kinds of source and found nothing, and *Unknown* means you couldn't tell, so a missed search never reads as a clean record. Every question shows common places to look and says what each answer means, and a small marker on each answer shows which way it pushes the score: a green circle lowers risk, a yellow diamond adds some, a red triangle adds the most (the shapes mean it works without telling the colors apart).
+
+The AI follows the same rules, and checks more than one independent source per topic (for example a regulator or court record *and* news, or CISA's KEV catalog and CVE records alongside the vendor's own advisories). Its sources and notes are in each answer for you to check.
 
 [**SCORING.md**](SCORING.md) explains it in one page, with a worked example and the basis for every question. In short:
 
@@ -108,24 +116,24 @@ Without `lock`, everything here is a pre-filled default. Users get your approval
 
 ```json
 {
-  "assessitConfig": 1,
+  "assessitConfig": 2,
   "name": "Contoso AssessIT config (managed)",
   "lock": true,
-  "rules": { "allowOverride": false, "allowYolo": false, "allowBulkReview": false },
+  "rules": { "allowOverride": false, "allowYolo": false },
   "org": { "orgName": "Contoso", "reviewTeam": "Contoso IT Risk Review" },
   "submit": { "method": "sharepoint", "tenant": "contoso.onmicrosoft.com", "clientId": "…your Entra app ID…",
               "siteUrl": "https://contoso.sharepoint.com/sites/ITRisk", "listName": "Software Risk Assessments" },
-  "policyUrl": "https://github.com/zaclohrenz/AssessIT/releases/latest/download/default-policy.json"
+  "policyUrl": "https://github.com/zaclohrenz/AssessIT/releases/latest/download/default-policy-v4.json"
 }
 ```
 
 | Option | What it does |
 |---|---|
+| `"assessitConfig": 2` | Use `2` when your config uses the default policy from release 0.2 on (as `policyUrl` does here). Version 0.2 turned some Yes/No questions around, so apps older than 0.2 reject a `2` config and keep their last good copy, instead of scoring answers the wrong way round. `1` still works for configs that don't carry the default policy. |
 | `"lock": true` | Users can't change anything the file sets. It also **pins the scoring policy** (yours, or the default), so nobody can import a more lenient one. Set at install time, it also pins the config URL: see "Changing a locked URL" below. |
 | `"lock": ["submit", "policy"]` | Lock only some parts. Any of `org`, `submit`, `model`, `policy`. |
 | `rules.allowOverride: false` | Hides **Decision override**. The calculated decision is what gets submitted; approvers can still accept risk when they decide. |
-| `rules.allowYolo: false` | No submitting with open issues: every required question answered and every AI answer reviewed first. |
-| `rules.allowBulkReview: false` | Removes **Mark all AI answers reviewed**, so each AI answer gets looked at. |
+| `rules.allowYolo: false` | No submitting with open issues: every required question answered and the request details filled in first. |
 | `policy` / `policyUrl` | Your own scoring policy, embedded or hosted. Leave both out to use the public defaults. |
 
 **Always on, no config needed:** when someone changes an answer that AI research proposed (for example a breach finding from Yes to No), the submission, the PDF and the `ChangedFromAI` SharePoint column show the AI's original answer next to theirs. Talking a score down is visible to approvers.

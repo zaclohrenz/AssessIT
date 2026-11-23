@@ -4,6 +4,8 @@ export type Decision = "Approved" | "Approved with Conditions" | "Denied";
 export interface Option {
   label: string;
   points: number;
+  /** What choosing this answer means, in plain words ("No written deletion promise found"). Shown to the person and sent to the AI. */
+  hint?: string;
 }
 
 export interface Factor {
@@ -23,6 +25,10 @@ export interface Factor {
   references: Reference[];
   justification: string;
   guidance: string;
+  /** What to do when unsure, if the standard wording ("check the places above; if you still can't tell, choose X") doesn't fit. */
+  unsure?: string;
+  /** Common places to look, as examples rather than a limit: shown to the person and given to the AI. */
+  lookWhere?: string;
   /** A pure value choice: assessors may switch it off for one assessment ("Ignore"). */
   ignorable?: boolean;
   /** Shown under "Why it matters" when ignorable: why it is fine to skip. */
@@ -94,6 +100,13 @@ export interface Assessment {
   answers: Record<string, Answer>;
   /** Set once sent for approval. flagged = sent with open issues ("YOLO"). */
   submitted?: { at: string; method: string; flagged: boolean };
+  /** Version of the default policy these answers were made under, so a policy that changed what Yes/No mean can migrate them. */
+  policyVersion?: number | string;
+  /**
+   * The assessor ticked "I agree with the AI's research". Optional: it never blocks submitting, it just
+   * records (for approvers) who agreed and when. Only offered when some answers came from AI research.
+   */
+  aiAttestation?: { by: string; at: string };
 }
 
 export interface OrgSettings {

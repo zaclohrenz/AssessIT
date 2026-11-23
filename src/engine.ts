@@ -25,6 +25,24 @@ export interface Driver {
   evidence: string;
 }
 
+/**
+ * The risk score as a share of the approval limit (the score where the policy starts denying), so the
+ * number means something: under 100% is within the limit, over it isn't.
+ *
+ *   green   under the limit
+ *   yellow  over it, but the mitigations the policy still offers could bring it under
+ *   red     over it even with every mitigation, or a hard stop was hit
+ */
+export interface RiskMeter {
+  zone: "green" | "yellow" | "red";
+  /** score / limit, as a whole percent (can exceed 100). */
+  percent: number;
+  /** The score at which the policy starts denying. */
+  limit: number;
+  /** Where yellow ends and red begins, as a percent of the limit (100 when no more mitigation can help). */
+  yellowUntilPercent: number;
+}
+
 export interface Result {
   factors: FactorResult[];
   likelihood: number;
@@ -49,6 +67,8 @@ export interface Result {
   finalDecision: "Incomplete" | Band["decision"];
   overridden: boolean;
   denialThreshold: number | null;
+  /** Where the score sits against the denial line; null while incomplete or when the policy has no denial band. */
+  meter: RiskMeter | null;
   creditedMitigations: string[];
   drivers: Driver[];
   mitigations: Driver[];
@@ -63,7 +83,7 @@ export interface Result {
  *
  * - likelihood:  sum of Likelihood points (signs an incident is more likely)
  * - impact:      sum of Impact points (how bad an incident would be)
- * - preference:  1.0 + 0.5 for each organization-preference concern answered "Yes"
+ * - preference:  1.0 + 0.5 for each organization-preference concern (the answer the policy scores 0.5)
  * - mitigation:  fraction of the score removed by controls in place, capped (default 25%)
  *
  * Likelihood × Impact follows NIST SP 800-30 Rev. 1. The golden cases in
@@ -84,6 +104,70 @@ export function bandFor<K extends "scoreMin" | "likelihoodMin" | "impactMin">(
   let hit = bands[0];
   for (const b of bands) if (b[key] <= value) hit = b;
   return hit;
+}
+
+export function riskMeter(i: {
+  score: number;
+  unmitigated: number;
+  applied: number;
+  possible: number;
+  limit: number | null;
+  hardStop: boolean;
+  incomplete: boolean;
+}): RiskMeter | null {
+  if (i.incomplete || i.limit === null || i.limit <= 0) return null;
+  const best = riskScore(1, i.unmitigated, 1, i.possible); // unmitigated × (1 − most credit possible)
+  const zone = i.hardStop ? "red" : i.score < i.limit ? "green" : best < i.limit ? "yellow" : "red";
+  // A score is still "yellow" while the credit it could still gain brings it under the limit.
+  const headroom = i.possible > i.applied ? (1 - i.applied) / (1 - i.possible) : 1;
+  return {
+    zone,
+    percent: Math.round((i.score / i.limit) * 100),
+    limit: i.limit,
+    yellowUntilPercent: Math.round(100 * headroom),
+  };
+}
+
+/**
+ * How an answer moves the score, for the light colour cue on each option:
+ *   good  adds nothing (or, for a mitigation, earns the credit)
+ *   mid   adds up to half of the most this question can add
+ *   bad   adds more than half
+ *   none  a mitigation you don't have: it simply earns no credit
+ */
+export type OptionTone = "good" | "mid" | "bad" | "none";
+export function optionTone(f: Pick<Factor, "section" | "options">, label: string): OptionTone {
+  const o = f.options.find((x) => x.label === label);
+  if (!o) return "none";
+  if (f.section === "Mitigation") return o.points > 0 ? "good" : "none";
+  const max = Math.max(...f.options.map((x) => x.points));
+  if (max <= 0) return "none";
+  const share = o.points / max;
+  return share === 0 ? "good" : share <= 0.5 ? "mid" : "bad";
+}
+
+const TONE_WORDS: Record<OptionTone, string> = { good: "lowers risk", mid: "adds some risk", bad: "adds the most risk", none: "no credit" };
+/** "+2 pts · adds the most risk": the tooltip, so the colour is never the only cue. */
+export const toneWords = (t: OptionTone) => TONE_WORDS[t];
+
+/**
+ * The answer to pick when you can't tell: the one that counts most against approval, so missing
+ * evidence never makes a tool look safer than it is. That's the highest-scoring option, except for
+ * mitigations, where "Yes" earns a credit and so the cautious answer is the lowest one. Questions with a
+ * "Not rated" / "Unknown" option use it when the policy scores it as a real concern. A hard-stop answer
+ * isn't suggested, since that would deny the request by default.
+ */
+export function cautiousChoice(f: Pick<Factor, "section" | "options" | "hardStop">): string | null {
+  const options = f.options.filter((o) => o.label !== f.hardStop);
+  if (options.length < 2) return null;
+  const mitigation = f.section === "Mitigation";
+  const points = options.map((o) => o.points);
+  const extreme = mitigation ? Math.min(...points) : Math.max(...points);
+  if (!mitigation) {
+    const unknown = options.find((o) => /^(unknown|not rated)$/i.test(o.label.trim()));
+    if (unknown && unknown.points >= extreme / 2) return unknown.label;
+  }
+  return options.find((o) => o.points === extreme)!.label;
 }
 
 /** Excel EDATE: add months, clamping to the last day of the target month. */
@@ -135,6 +219,7 @@ export function compute(policy: Policy, a: Assessment): Result {
   const mitigationApplied = Math.min(policy.maxMitigationCredit, mitigationRaw);
   const unmitigated = riskScore(likelihood, impact, preference, 0);
   const score = riskScore(likelihood, impact, preference, mitigationApplied);
+  const mitigationMax = total("Mitigation", "maxPoints");
   const likelihoodMax = total("Likelihood", "maxPoints");
   const impactMax = total("Impact", "maxPoints");
   const preferenceMax = policy.basePreferenceMultiplier + total("Preference", "maxPoints");
@@ -168,6 +253,17 @@ export function compute(policy: Policy, a: Assessment): Result {
   const creditedMitigations = rows
     .filter((r) => r.factor.section === "Mitigation" && r.points > 0)
     .map((r) => r.factor.factor);
+
+  const meter = riskMeter({
+    score,
+    unmitigated,
+    applied: mitigationApplied,
+    // The most credit this policy can still give: its cap, or what its mitigation questions add up to.
+    possible: Math.min(policy.maxMitigationCredit, mitigationMax),
+    limit: policy.bands.find((b) => b.decision === "Denied")?.scoreMin ?? null,
+    hardStop: hardStops.length > 0,
+    incomplete: requiredUnanswered.length > 0,
+  });
 
   let calculatedDecision: Result["calculatedDecision"];
   if (requiredUnanswered.length) calculatedDecision = "Incomplete";
@@ -238,6 +334,7 @@ export function compute(policy: Policy, a: Assessment): Result {
     finalDecision,
     overridden: !!override,
     denialThreshold: denied ? denied.scoreMin : null,
+    meter,
     creditedMitigations,
     drivers,
     mitigations,

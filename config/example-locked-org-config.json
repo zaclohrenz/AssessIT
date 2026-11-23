@@ -1,11 +1,10 @@
 {
-  "assessitConfig": 1,
+  "assessitConfig": 2,
   "name": "Contoso AssessIT config (managed)",
   "lock": true,
   "rules": {
     "allowOverride": false,
-    "allowYolo": false,
-    "allowBulkReview": false
+    "allowYolo": false
   },
   "org": {
     "orgName": "Contoso",
@@ -20,5 +19,5 @@
     "listName": "Software Risk Assessments"
   },
   "model": "sonnet",
-  "policyUrl": "https://github.com/zaclohrenz/AssessIT/releases/latest/download/default-policy.json"
+  "policyUrl": "https://github.com/zaclohrenz/AssessIT/releases/latest/download/default-policy-v4.json"
 }

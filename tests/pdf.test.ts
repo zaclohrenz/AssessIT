@@ -32,13 +32,20 @@ describe("PDF report", () => {
   it("puts open issues in the PDF when submitted YOLO-style", () => {
     const a = structuredClone(example) as Assessment;
     a.answers.L1.response = "";
-    a.answers.L2.origin = "ai";
     expect(JSON.stringify(reportPdf(policy, a, org).content)).toContain("OPEN ISSUES: NOT READY TO SUBMIT");
     a.submitted = { at: "2026-01-01T00:00:00Z", method: "sharepoint", flagged: true };
     const dd = JSON.stringify(reportPdf(policy, a, org).content);
     expect(dd).toContain("SUBMITTED WITH OPEN ISSUES");
     expect(dd).toContain("1 required question(s) unanswered (L1)");
-    expect(dd).toContain("weren't reviewed by a person (L2)");
+  });
+
+  it("says who vouched for the AI's answers, and shows nothing when AI wasn't used", () => {
+    const a = structuredClone(example) as Assessment;
+    expect(JSON.stringify(reportPdf(policy, a, org).content)).not.toContain("came from AI research");
+    a.answers.L2.origin = "ai";
+    expect(JSON.stringify(reportPdf(policy, a, org).content)).toContain("didn't tick the box");
+    a.aiAttestation = { by: "Pat", at: "2026-02-03T10:00:00Z" };
+    expect(JSON.stringify(reportPdf(policy, a, org).content)).toContain("agreed with them (2026-02-03)");
   });
 
   it("shows the AI's original answer when a person changed it", () => {

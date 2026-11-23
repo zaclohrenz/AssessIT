@@ -160,6 +160,15 @@ input:disabled, select:disabled { opacity: 0.65; cursor: not-allowed; }
 .opts { display: flex; flex-wrap: wrap; gap: 6px; }
 .opt { border: 1px solid var(--input-line); background: var(--input); border-radius: 8px; padding: 5px 12px; cursor: pointer; }
 .opt.on { background: var(--navy); border-color: var(--navy); color: var(--panel); font-weight: 600; }
+/* A small marker shows which way an answer pushes the score. Shape as well as colour (circle / diamond / triangle), so it works without telling green from red. */
+.opt[data-tone]:not([data-tone="none"])::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 7px; background: var(--tone); }
+.opt[data-tone="good"] { --tone: var(--go); }
+.opt[data-tone="mid"] { --tone: #e0a800; }
+.opt[data-tone="bad"] { --tone: #c0392b; }
+.opt[data-tone="good"]::before { border-radius: 50%; }
+.opt[data-tone="mid"]::before { transform: rotate(45deg) scale(0.85); }
+.opt[data-tone="bad"]::before { clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.opt.on[data-tone]::before { outline: 2px solid var(--panel); outline-offset: 0; }
 .ev { display: grid; grid-template-columns: 1.4fr 1fr; gap: 8px; }
 .ev textarea { min-height: 54px; font-size: 13px; }
 .ev input { font-size: 13px; }
@@ -246,3 +255,31 @@ nav button.upd:hover { background: var(--muted-bg); }
 
 /* Questions the assessor chose to ignore, and the quiet "Ignore" button. */
 .q.ignored .text { color: var(--muted); }
+
+/* Report: where the score sits against the approval limit */
+.meter { margin: 0 0 10px; }
+.meter .track { position: relative; display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--muted-bg); }
+.meter .seg.green { background: var(--go); }
+.meter .seg.yellow { background: #e0a800; }
+.meter .seg.red { background: #c0392b; }
+.meter .mark { position: absolute; top: -2px; bottom: -2px; width: 4px; margin-left: -2px; background: var(--ink); border-radius: 2px; box-shadow: 0 0 0 2px var(--panel); }
+.meter-note { margin-top: 6px; font-size: 13px; color: var(--muted); }
+.meter-note.z-green b, .tile.z-green .v { color: var(--go); }
+.meter-note.z-yellow b, .tile.z-yellow .v { color: var(--warn); }
+.meter-note.z-red b, .tile.z-red .v { color: var(--bad); }
+
+/* Questionnaire: cautious-answer hint and clickable sources */
+.q .unsure { color: var(--muted); font-size: 12.5px; font-style: italic; }
+.q .unsure b { font-style: normal; color: var(--ink); }
+.srclinks { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.srclinks:empty { display: none; }
+.srclink { background: none; border: 0; padding: 0; font: inherit; font-size: 12.5px; color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+
+/* Report: confirming the AI's answers before submitting */
+.attest-note { margin: 0 0 8px; }
+.attest { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin: 0 0 12px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.attest.on { border-color: var(--go); background: var(--ok-bg); }
+.attest input { margin-top: 3px; }
+.q .where { color: var(--muted); font-size: 12.5px; }
+.q .means { font-size: 12.5px; margin: 4px 0; padding-left: 8px; border-left: 2px solid var(--line); }
+.q .means b { font-weight: 600; }

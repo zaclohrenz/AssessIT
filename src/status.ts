@@ -1,21 +1,19 @@
 import { compute, isIgnored } from "./engine";
-import { missingDetails, reviewFlags } from "./report";
+import { aiAnswerIds, missingDetails, reviewFlags } from "./report";
 import type { Settings } from "./settings";
-import type { Answer, Assessment, Policy, Section } from "./types";
+import type { Assessment, Policy, Section } from "./types";
 
 /** The status bubbles in the left-hand pane. */
 export type BubbleKind = "todo" | "review" | "ok" | "opt" | "sent" | "hot" | "warm";
 export type Bubble = [BubbleKind, string];
 
-export const isUnreviewedAi = (x?: Answer) => !!x && x.origin === "ai" && !!(x.response || x.notes);
-export const unreviewedAi = (a: Assessment) => Object.values(a.answers).filter(isUnreviewedAi).length;
+/** How many answers are still the AI's (a person editing one makes it theirs). */
+export const aiAnswerCount = (a: Assessment) => aiAnswerIds(a).length;
 
 export function sectionStatus(policy: Policy, a: Assessment, sec: Section): Bubble {
   const fs = policy.factors.filter((f) => f.section === sec && f.enabled && !isIgnored(f, a.answers[f.id]));
   const missing = fs.filter((f) => f.required && !a.answers[f.id]?.response).length;
-  const ai = fs.filter((f) => isUnreviewedAi(a.answers[f.id])).length;
   if (missing) return ["todo", `TODO ${missing}`];
-  if (ai) return ["review", `REVIEW ${ai}`];
   if (!fs.some((f) => a.answers[f.id]?.response) && !fs.some((f) => f.required)) return ["opt", "OPTIONAL"];
   return ["ok", "OK"];
 }
@@ -30,13 +28,10 @@ export function submitConfigured(s: Settings["submit"]): boolean {
 export function navStatus(policy: Policy, a: Assessment, submit: Settings["submit"]) {
   const r = compute(policy, a);
   const detailsMissing = missingDetails(a.details).length;
-  const aiLeft = unreviewedAi(a);
   const request: Bubble = detailsMissing ? ["todo", `TODO ${detailsMissing}`] : ["ok", "OK"];
   const questions: Bubble = r.requiredUnanswered.length
     ? ["todo", `TODO ${r.requiredUnanswered.length}`]
-    : aiLeft
-      ? ["review", `REVIEW ${aiLeft}`]
-      : ["ok", "OK"];
+    : ["ok", "OK"];
   const report: Bubble = a.submitted
     ? ["sent", "SENT"]
     : r.finalDecision === "Incomplete" || detailsMissing

@@ -3,7 +3,7 @@
 
 import type { Content, TableCell, TDocumentDefinitions } from "pdfmake/interfaces";
 import { bandFor, compute, draftMessage, formatDate, pathToApproval, summary } from "./engine";
-import { APP_VERSION, decisionTone, fmtPts, reviewFlags } from "./report";
+import { aiAttestationText, APP_VERSION, decisionTone, fmtPts, reviewFlags, scoreCaption, scoreHeadline, ZONE_LABEL } from "./report";
 import type { Assessment, OrgSettings, Policy } from "./types";
 
 const NAVY = "#1f3a5f";
@@ -97,13 +97,16 @@ export function reportPdf(policy: Policy, a: Assessment, org: OrgSettings): TDoc
       margin: [0, 6, 0, 0],
     });
 
+  if (aiAttestationText(a))
+    content.push({ text: aiAttestationText(a), fontSize: 8, italics: true, color: "#44546A", margin: [0, 6, 0, 0] });
+
   content.push(
     {
       table: {
         widths: ["*", "*", "*", "*"],
         body: [
           [
-            tile("Risk score", r.finalDecision === "Incomplete" ? "—" : n1(r.score), `of ${r.maxScore.toFixed(0)} max · ${n1(r.unmitigated)} before mitigation`),
+            tile("Risk score", scoreHeadline(r), r.meter ? `${ZONE_LABEL[r.meter.zone]}. ${scoreCaption(r, n1)}` : scoreCaption(r, n1)),
             tile("Risk band", r.band.name, `Band policy: ${r.band.decision}`),
             tile("Likelihood", String(r.likelihood), `${r.likelihoodBand} (max ${r.likelihoodMax})`),
             tile("Impact", String(r.impact), `${r.impactBand} (max ${r.impactMax})`),

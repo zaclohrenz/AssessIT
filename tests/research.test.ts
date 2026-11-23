@@ -19,7 +19,29 @@ describe("research", () => {
   it("prompt lists every enabled question and marks internal ones", () => {
     const p = researchPrompt(policy, blank().details, "2026-11-20");
     for (const f of policy.factors) expect(p).toContain(`- ${f.id} (`);
-    expect(p).toMatch(/- M1 \(Mitigation\)[^\n]*\n[^\n]*\n\s+INTERNAL/);
+    expect(p).toMatch(/- M1 \(Mitigation\)[^\n]*\n\s+Options:[\s\S]*?\n\s+INTERNAL/);
+  });
+
+  it("spells out what each answer means, so negatively worded questions can't be inverted", () => {
+    const p = researchPrompt(policy, blank().details, "2026-11-20");
+    expect(p).toContain('"No" = No specific time limit found');
+    expect(p).toContain('"Yes" = The contract commits to a specific time limit');
+    expect(p).toMatch(/some questions ask whether something good exists \(Yes is the good answer\), and some ask whether something bad happened/);
+  });
+
+  it("tells the AI that looking and finding nothing is an answer, not a blank", () => {
+    const p = researchPrompt(policy, blank().details, "2026-11-20");
+    expect(p).toMatch(/found no evidence it exists, answer No/);
+    expect(p).toMatch(/Never give credit for something you could not show/);
+    expect(p).toMatch(/Unknown is not a mild No/);
+    expect(p).toMatch(/never accuse a vendor without a source/);
+    expect(p).toMatch(/at least two kinds of source/);
+    expect(p).toMatch(/Unknown is for when you tried and still couldn't establish it/);
+  });
+
+  it("asks for the evidence before the answer", () => {
+    const props = Object.keys((researchSchema(policy) as any).properties.answers.items.properties);
+    expect(props.indexOf("notes")).toBeLessThan(props.indexOf("response"));
   });
 
   it("schema restricts ids", () => {
@@ -86,5 +108,25 @@ Let me know if you need more.`;
 
   it("explains when there's nothing to parse", () => {
     expect(() => parseManualResponse(policy, "I can't browse the web, sorry.")).toThrow(/Couldn't find the answers/);
+  });
+});
+
+describe("research prompt: sources and consistency", () => {
+  const p = researchPrompt(policy, blank().details, "2026-11-20");
+  it("gives common places to look per question, as examples, not a limit", () => {
+    expect(p).toContain("Where to look (examples, not a limit)");
+    expect(p).toMatch(/starting points, not a checklist and not a limit/);
+    for (const named of ["Crunchbase", "CISA", "Known Exploited Vulnerabilities", "Vulnrichment", "OFAC", "state attorney-general", "CourtListener"]) expect(p).toContain(named);
+  });
+  it("asks for more than one independent source and a repeatable method", () => {
+    expect(p).toMatch(/more than one independent source/);
+    expect(p).toMatch(/reaches the same answer from the same evidence/);
+  });
+  it("defines what high, medium and low confidence mean", () => {
+    expect(p).toMatch(/high = a primary source states it directly, or two independent sources agree/);
+    expect(p).toMatch(/low = inference, a single weak source/);
+  });
+  it("no longer claims that Yes is always the risky answer", () => {
+    expect(p).not.toMatch(/"Yes" is the risky answer/);
   });
 });

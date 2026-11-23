@@ -152,6 +152,6 @@ describe("example configs in config/", () => {
     const c = sanitizeConfig("managed", load("example-locked-org-config.json"));
     expect(lockedPaths(c)).toContain("submit.siteUrl");
     expect(lockedPaths(c)).toContain("policy");
-    expect(orgRules(c)).toEqual({ allowOverride: false, allowYolo: false, allowBulkReview: false });
+    expect(orgRules(c)).toEqual({ allowOverride: false, allowYolo: false });
   });
 });
