@@ -311,7 +311,7 @@ function breakdownHtml(): string {
     )
     .join("");
   return `<h4>Where the score comes from</h4>
-    <p class="muted iformula">Likelihood × Impact × Preference × (1 − Mitigation)</p>
+    <p class="muted iformula">Likelihood × Impact × Preference × (1 − Mitigation %)</p>
     ${rows}
     <div class="iresult"><span>${esc(b.working)}</span><b>= ${esc(b.score)}</b></div>
     ${b.against ? `<div class="idetail">That's <b>${esc(b.against)}</b>. Lower is better, and 100% is the line. Before mitigations it would be ${esc(b.beforeMitigation)}.</div>` : ""}
