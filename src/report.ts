@@ -89,19 +89,63 @@ export function scoreCaptionPlain(r: Result): string {
   return r.meter ? `${ZONE_LABEL[r.meter.zone]} · lower is better` : "lower is better";
 }
 
-/** The full numbers behind the percentage, for a hover tooltip. Exports and payloads carry the same figures. */
-export function scoreTooltip(r: Result): string {
+export interface BreakdownPart {
+  key: "likelihood" | "impact" | "preference" | "mitigation";
+  label: string;
+  /** "9 of 24", "×1.5", "−10%" */
+  value: string;
+  /** One line on where it comes from. */
+  detail: string;
+  /** 0 to 1, for the little bar. */
+  fill: number;
+}
+
+export interface Breakdown {
+  parts: BreakdownPart[];
+  /** "9 × 5 × 1.5 × (1 − 10%)" */
+  working: string;
+  score: string;
+  beforeMitigation: string;
+  /** "92% of the approval limit (58)", or "" when the policy has no limit. */
+  against: string;
+}
+
+/**
+ * Where the score comes from, section by section, for the "i" popover: the one place the app shows the
+ * numbers. Null while the assessment is incomplete.
+ */
+export function scoreBreakdown(r: Result, p: { basePreferenceMultiplier: number; maxMitigationCredit: number }): Breakdown | null {
+  if (r.finalDecision === "Incomplete") return null;
   const n1 = (x: number) => x.toFixed(1);
-  if (r.finalDecision === "Incomplete") return "Answer every required question to see the score.";
-  return [
-    r.meter ? `Risk score ${n1(r.score)} (${r.meter.percent}% of the ${n1(r.meter.limit)} approval limit)` : `Risk score ${n1(r.score)}`,
-    `Before mitigation: ${n1(r.unmitigated)}`,
-    `Likelihood ${r.likelihood} of ${r.likelihoodMax} (${r.likelihoodBand})`,
-    `Impact ${r.impact} of ${r.impactMax} (${r.impactBand})`,
-    `Preference multiplier ×${r.preference.toFixed(1)} (max ×${r.preferenceMax.toFixed(1)})`,
-    `Mitigation credit −${Math.round(r.mitigationApplied * 100)}%`,
-    `Band: ${r.band.name} → ${r.band.decision}`,
-  ].join("\n");
+  const concerns = r.factors.filter((f) => f.factor.section === "Preference" && f.points > 0).length;
+  const raise = Math.round((r.preference / p.basePreferenceMultiplier - 1) * 100);
+  const prefRoom = r.preferenceMax - p.basePreferenceMultiplier;
+  const capped = r.mitigationRaw > p.maxMitigationCredit;
+  const frac = (x: number, of: number) => (of > 0 ? Math.max(0, Math.min(1, x / of)) : 0);
+  return {
+    parts: [
+      { key: "likelihood", label: "Likelihood", value: `${r.likelihood} of ${r.likelihoodMax}`, detail: `${r.likelihoodBand}. Signs an incident is more likely.`, fill: frac(r.likelihood, r.likelihoodMax) },
+      { key: "impact", label: "Impact", value: `${r.impact} of ${r.impactMax}`, detail: `${r.impactBand}. How bad an incident would be for us.`, fill: frac(r.impact, r.impactMax) },
+      {
+        key: "preference",
+        label: "Organization preferences",
+        value: `×${n1(r.preference)}`,
+        detail: concerns ? `${concerns} value concern${concerns === 1 ? "" : "s"} raise${concerns === 1 ? "s" : ""} the whole score by ${raise}%.` : "No value concerns, so nothing scales the score up.",
+        fill: frac(r.preference - p.basePreferenceMultiplier, prefRoom),
+      },
+      {
+        key: "mitigation",
+        label: "Mitigations",
+        value: `−${Math.round(r.mitigationApplied * 100)}%`,
+        detail: `Controls you have in place cut the score, up to ${Math.round(p.maxMitigationCredit * 100)}%${capped ? " (you're at the cap)" : ""}.`,
+        fill: frac(r.mitigationApplied, p.maxMitigationCredit),
+      },
+    ],
+    working: `${r.likelihood} × ${r.impact} × ${n1(r.preference)} × (1 − ${Math.round(r.mitigationApplied * 100)}%)`,
+    score: n1(r.score),
+    beforeMitigation: n1(r.unmitigated),
+    against: r.meter ? `${r.meter.percent}% of the approval limit (${n1(r.meter.limit)})` : "",
+  };
 }
 
 /** What the number means, in a line: lower is better, and where the limit is. */

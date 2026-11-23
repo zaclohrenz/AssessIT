@@ -5,7 +5,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { bandFor, cautiousChoice, compute, draftMessage, formatDate, isIgnored, optionTone, pathToApproval, summary, toneWords, type Result } from "./engine";
 import { chooseConfig, sanitizeConfig, type ConfigChoice } from "./orgconfig";
 import { reportPdf } from "./pdf";
-import { APP_VERSION, changedFromAi, STATUSES, decisionTone, fmtPts, listFields, REQUIRED_DETAILS, reviewFlags, scoreCaptionPlain, scoreHeadline, scoreTooltip, SHAREPOINT_COLUMNS, webhookPayload, xlsxSheets, ZONE_LABEL } from "./report";
+import { APP_VERSION, changedFromAi, STATUSES, decisionTone, fmtPts, listFields, REQUIRED_DETAILS, reviewFlags, scoreBreakdown, scoreCaptionPlain, scoreHeadline, SHAREPOINT_COLUMNS, webhookPayload, xlsxSheets, ZONE_LABEL } from "./report";
 import { extractUrls, linkLabel } from "./links";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -293,6 +293,100 @@ async function installUpdate() {
   }
 }
 
+// ---------------- "i" breakdown popover ----------------
+
+/** The small "i": hover, click or focus it to see where the score comes from. */
+const infoButton = () => `<button type="button" class="info" aria-label="How is this score calculated?" aria-expanded="false">i</button>`;
+
+function breakdownHtml(): string {
+  const r = result();
+  const b = scoreBreakdown(r, policy());
+  if (!b)
+    return `<h4>How the score works</h4><p class="muted">Answer every required question to see it. ${r.requiredUnanswered.length} left.</p>`;
+  const rows = b.parts
+    .map(
+      (x) => `<div class="irow"><div class="ihead"><span>${esc(x.label)}</span><b>${esc(x.value)}</b></div>
+        <div class="ibar" aria-hidden="true"><i class="${x.key === "mitigation" ? "good" : ""}" style="width:${Math.round(x.fill * 100)}%"></i></div>
+        <div class="idetail">${esc(x.detail)}</div></div>`,
+    )
+    .join("");
+  return `<h4>Where the score comes from</h4>
+    <p class="muted iformula">Likelihood × Impact × Preference × (1 − Mitigation)</p>
+    ${rows}
+    <div class="iresult"><span>${esc(b.working)}</span><b>= ${esc(b.score)}</b></div>
+    ${b.against ? `<div class="idetail">That's <b>${esc(b.against)}</b>. Lower is better, and 100% is the line. Before mitigations it would be ${esc(b.beforeMitigation)}.</div>` : ""}
+    <p class="muted ifoot">The Report tab shows every answer behind these.</p>`;
+}
+
+let infoPop: HTMLDivElement | null = null;
+let pinnedInfo: HTMLElement | null = null;
+let infoHideTimer: number | undefined;
+
+function showInfo(btn: HTMLElement) {
+  window.clearTimeout(infoHideTimer);
+  if (!infoPop) {
+    infoPop = document.createElement("div");
+    infoPop.className = "infopop";
+    infoPop.setAttribute("role", "dialog");
+    infoPop.addEventListener("mouseenter", () => window.clearTimeout(infoHideTimer));
+    infoPop.addEventListener("mouseleave", () => !pinnedInfo && scheduleHideInfo());
+    document.body.appendChild(infoPop);
+  }
+  infoPop.innerHTML = breakdownHtml();
+  infoPop.hidden = false;
+  document.querySelectorAll(".info[aria-expanded=true]").forEach((el) => el.setAttribute("aria-expanded", "false"));
+  btn.setAttribute("aria-expanded", "true");
+  const r = btn.getBoundingClientRect();
+  const w = Math.min(340, window.innerWidth - 16);
+  infoPop.style.width = `${w}px`;
+  infoPop.style.left = `${Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2))}px`;
+  const below = r.bottom + 8;
+  infoPop.style.top = `${below}px`;
+  // Not enough room underneath: open upwards.
+  if (below + infoPop.offsetHeight > window.innerHeight - 8) infoPop.style.top = `${Math.max(8, r.top - 8 - infoPop.offsetHeight)}px`;
+}
+
+function hideInfo() {
+  window.clearTimeout(infoHideTimer);
+  pinnedInfo = null;
+  if (infoPop) infoPop.hidden = true;
+  document.querySelectorAll(".info[aria-expanded=true]").forEach((el) => el.setAttribute("aria-expanded", "false"));
+}
+const scheduleHideInfo = () => {
+  window.clearTimeout(infoHideTimer);
+  infoHideTimer = window.setTimeout(hideInfo, 180);
+};
+
+document.addEventListener("mouseover", (e) => {
+  const btn = (e.target as HTMLElement).closest<HTMLElement>(".info");
+  if (btn && !pinnedInfo) showInfo(btn);
+});
+document.addEventListener("mouseout", (e) => {
+  const btn = (e.target as HTMLElement).closest<HTMLElement>(".info");
+  if (btn && !pinnedInfo) scheduleHideInfo();
+});
+document.addEventListener("focusin", (e) => {
+  const btn = (e.target as HTMLElement).closest<HTMLElement>(".info");
+  if (btn && !pinnedInfo) showInfo(btn);
+});
+document.addEventListener("focusout", (e) => {
+  if ((e.target as HTMLElement).closest(".info") && !pinnedInfo) scheduleHideInfo();
+});
+document.addEventListener("click", (e) => {
+  const t = e.target as HTMLElement;
+  const btn = t.closest<HTMLElement>(".info");
+  if (btn) {
+    // Click pins it open (handy on touch screens); click again to close.
+    if (pinnedInfo === btn) return hideInfo();
+    pinnedInfo = btn;
+    return showInfo(btn);
+  }
+  if (!t.closest(".infopop")) hideInfo();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") hideInfo();
+});
+
 function refreshHeader() {
   const r = result();
   const d = S.a.details;
@@ -300,12 +394,14 @@ function refreshHeader() {
   const tone = decisionTone(r.finalDecision);
   // The app shows a percentage of the approval limit, never raw points; the numbers are one hover away.
   const score = r.finalDecision === "Incomplete" ? `${r.requiredUnanswered.length} required left` : r.meter ? `${r.meter.percent}%` : r.band.name;
-  $("#score-pill")!.innerHTML = `<span class="pill ${tone}" title="${esc(scoreTooltip(r))}">${esc(r.finalDecision)} <span style="font-weight:400">${esc(score)}</span></span>`;
+  $("#score-pill")!.innerHTML = `<span class="pill ${tone}">${esc(r.finalDecision)} <span style="font-weight:400">${esc(score)}</span></span>${infoButton()}`;
+  if (pinnedInfo && !pinnedInfo.isConnected) hideInfo();
 }
 
 let renderedTab: Tab | null = null;
 
 function renderPage() {
+  hideInfo(); // the "i" buttons are about to be replaced
   const page = $("#page")!;
   if (S.tab === "request") page.innerHTML = requestPage();
   if (S.tab === "questions") page.innerHTML = questionsPage();
@@ -756,7 +852,7 @@ function reportBody(): string {
   const p = policy();
   const r = result();
   const tone = decisionTone(r.finalDecision);
-  const tile = (k: string, v: string, s: string, cls = "", tip = "") => `<div class="tile ${cls}"${tip ? ` title="${esc(tip)}"` : ""}><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+  const tile = (k: string, v: string, s: string, cls = "") => `<div class="tile ${cls}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
   const drivers = r.drivers.length
     ? `<table><tr><th>#</th><th>Factor</th><th>Section</th><th>Answer</th><th>Would lower the score by</th><th>Evidence</th></tr>${r.drivers
         .map((x) => `<tr><td>${x.rank}</td><td>${esc(x.factor.factor)}</td><td>${x.factor.section}</td><td>${esc(x.response)}</td><td class="num" title="${x.scoreReduction.toFixed(1)} points">−${shareOf(r, x.scoreReduction)}</td><td>${esc(x.evidence)}</td></tr>`)
@@ -769,11 +865,11 @@ function reportBody(): string {
     : `<p class="muted">None credited.</p>`;
   const aiN = aiCount();
   return `
-    <div class="banner ${tone}" title="${esc(scoreTooltip(r))}"><div class="d">${esc(r.finalDecision.toUpperCase())}${r.overridden ? " (OVERRIDE)" : ""}</div><div>${esc(summary(r, S.a, true))}</div></div>
+    <div class="banner ${tone}"><div class="d">${esc(r.finalDecision.toUpperCase())}${r.overridden ? " (OVERRIDE)" : ""}</div><div>${esc(summary(r, S.a, true))}</div></div>
     ${aiN ? `<div class="status"><span class="dot"></span><div style="flex:1">${aiN} answer${aiN === 1 ? "" : "s"} came from AI research. Look ${aiN === 1 ? "it" : "them"} over before you submit.</div><button class="btn small" data-action="review-ai">Review ${aiN === 1 ? "it" : "them"}</button></div>` : ""}
     ${meterHtml(r)}
     <div class="tiles">
-      ${tile("Risk vs. approval limit", scoreHeadline(r), esc(scoreCaptionPlain(r)), r.meter ? `z-${r.meter.zone}` : "", scoreTooltip(r))}
+      ${tile(`Risk vs. approval limit ${infoButton()}`, scoreHeadline(r), esc(scoreCaptionPlain(r)), r.meter ? `z-${r.meter.zone}` : "")}
       ${tile("Required answered", `${r.requiredCount - r.requiredUnanswered.length} / ${r.requiredCount}`, `+ ${r.optionalAnswered} optional answered`)}
       ${tile("Re-review by", esc(formatDate(r.reReviewDate) || "—"), `every ${r.reReviewMonths} months`)}
     </div>
