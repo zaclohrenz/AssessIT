@@ -101,9 +101,9 @@ From the original spreadsheet: an enterprise AI assistant with confidential (non
 
 The defaults follow NIST CSF 2.0, the NIST AI RMF and CISA guidance. They are not meant to be tuned to change the result for one vendor, so the editor makes every change visible:
 
-- Nothing is saved until you press **Save**, and saving needs a written reason (at least 10 characters) and a confirmation.
+- Nothing is saved until you press **Save**. You can add a note about why; it is optional.
 - Every changed question is highlighted, and the full list of changes against the standard policy is shown before you save: points, rewording, added or removed questions and answers, the threshold, the bands.
-- The saved policy carries the date, the reason and the list of changes. Every report, PDF, Excel export and webhook/SharePoint submission says the policy was **edited locally** and adds a review flag with the reason, so an approver sees it.
+- The saved policy carries the date, the reason and the list of changes. Every report, PDF, Excel export and webhook/SharePoint submission says the policy was **edited locally** and adds a review flag (with your note, if you wrote one), so an approver sees it.
 - Values are range-checked (points 0–10 for likelihood and impact, mitigation credit 0–50%, the first band starts at 0, one band must be Denied, text lengths, no empty or duplicate answer labels). A policy imported from a file or URL gets the same number checks, and everything is escaped wherever it is printed.
 - If an organization config locks the policy, the page is read-only.
 - The edits live only on this computer. To share them, use **Export policy** or **Export org config**.

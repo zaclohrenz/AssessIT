@@ -5,7 +5,6 @@ import type { Factor, Policy, PolicyEdits, Section } from "./types";
  * against the baseline, needs a written reason, and is stamped on every report made with it.
  */
 
-export const REASON_MIN = 10;
 export const REASON_MAX = 500;
 
 /** What a point value may be, per section. Mitigation points are a share of credit (0.05 = 5%). */
@@ -127,13 +126,9 @@ export function diffPolicy(base: Policy, next: Policy): string[] {
   return out;
 }
 
-/** The reason has to say something: not blank, not a single repeated character. */
+/** The note is optional; it only has to fit. */
 export function reasonProblem(reason: string): string | null {
-  const r = reason.trim();
-  if (r.length < REASON_MIN) return `Say why in at least ${REASON_MIN} characters. It's kept on every report made with these weights.`;
-  if (r.length > REASON_MAX) return `Keep the reason under ${REASON_MAX} characters.`;
-  if (new Set(r.toLowerCase().replace(/\s/g, "")).size < 4) return "Give a real reason.";
-  return null;
+  return reason.trim().length > REASON_MAX ? `Keep the note under ${REASON_MAX} characters.` : null;
 }
 
 /**
@@ -152,7 +147,7 @@ export const policyLabel = (p: Pick<Policy, "name" | "version" | "edits">): stri
 
 /** One review flag for approvers when the weights aren't the stock ones. */
 export const policyEditFlag = (p: Pick<Policy, "edits">): string | null =>
-  p.edits ? `Scoring weights were edited locally on ${p.edits.at.slice(0, 10)} (${p.edits.changes.length} change${p.edits.changes.length === 1 ? "" : "s"}). Reason given: ${p.edits.reason}` : null;
+  p.edits ? `Scoring weights were edited locally on ${p.edits.at.slice(0, 10)} (${p.edits.changes.length} change${p.edits.changes.length === 1 ? "" : "s"}).${p.edits.reason ? ` Note: ${p.edits.reason}` : ""}` : null;
 
 // ---- The approval threshold: where the first Denied band starts ----
 

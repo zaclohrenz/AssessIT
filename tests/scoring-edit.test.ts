@@ -55,12 +55,16 @@ describe("scoring editor rules", () => {
     expect(d[0]).toMatch(/→ 7%/);
   });
 
-  it("needs a real reason", () => {
-    expect(reasonProblem("")).toMatch(/at least/);
-    expect(reasonProblem("too short")).toMatch(/at least/);
-    expect(reasonProblem("aaaaaaaaaaaaaaaa")).toMatch(/real reason/);
+  it("the note is optional and only has to fit", () => {
+    expect(reasonProblem("")).toBeNull();
+    expect(reasonProblem("Our regulator requires this.")).toBeNull();
     expect(reasonProblem("x".repeat(600))).toMatch(/under/);
-    expect(reasonProblem("Our regulator requires this as a hard stop.")).toBeNull();
+  });
+
+  it("saves with no note at all, and the flag still says it was edited", () => {
+    const saved = withEdits(base(), edit((p) => (p.maxMitigationCredit = 0.2)), "")!;
+    expect(saved.edits!.reason).toBe("");
+    expect(policyEditFlag(saved)).toMatch(/edited locally on .*\(1 change\)\.$/);
   });
 
   it("saves the edit with what changed, when and why; nothing changed saves nothing", () => {
@@ -77,7 +81,7 @@ describe("scoring editor rules", () => {
     const saved = withEdits(base(), edit((p) => (p.factors[0].options[1].points = 3)), "Raising a weight for the test")!;
     expect(policyLabel(saved)).toMatch(/\(edited locally\)/);
     expect(policyLabel(base())).not.toMatch(/edited/);
-    expect(reviewFlags(compute(saved, a), a, saved).join(" ")).toMatch(/edited locally on .*Raising a weight/);
+    expect(reviewFlags(compute(saved, a), a, saved).join(" ")).toMatch(/edited locally on .*Note: Raising a weight/);
     expect(reviewFlags(compute(base(), a), a, base()).join(" ")).not.toMatch(/edited/);
     expect(answersText(saved, a, compute(saved, a))).toMatch(/Policy: .*\(edited locally\)/);
     expect(policyEditFlag(base())).toBeNull();

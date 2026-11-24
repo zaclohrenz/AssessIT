@@ -107,7 +107,7 @@ const S = {
   device: null as DeviceCode | null,
   submitting: false,
   vuln: loadVuln(),
-  /** The scoring editor's working copy. Nothing is saved until the person saves it with a reason. */
+  /** The scoring editor's working copy. Nothing is saved until the person saves it. */
   sc: null as null | { draft: Policy; reason: string; tab: ScTab },
   /** Last bubble state per nav item, so a change can "pop". */
   bubbles: {} as Record<string, string>,
@@ -962,7 +962,7 @@ function scoringCard(): string {
     <div class="row"><b>${esc(p.name)} v${esc(p.version)}</b><span class="muted">${policySourceLabel()}</span>${locked ? ` <span class="lock" title="Set by your organization's config">🔒 managed</span>` : ""}
       ${p.edits ? `<span class="tag warn">edited locally</span>` : ""}</div>
     <p class="muted" style="margin:6px 0 0">Threshold of acceptable risk: <b>${approvalLimit(p) ?? "none"}</b>${approvalLimit(p) !== approvalLimit(baselinePolicy()) ? ` (standard ${approvalLimit(baselinePolicy())})` : ""}. ${p.factors.filter((f) => f.enabled).length} questions on.</p>
-    ${p.edits ? `<p class="muted">Changed ${esc(p.edits.at.slice(0, 10))}: “${esc(p.edits.reason)}” (${p.edits.changes.length} change${p.edits.changes.length === 1 ? "" : "s"}). Every report made with these weights says so.</p>` : ""}
+    ${p.edits ? `<p class="muted">Changed ${esc(p.edits.at.slice(0, 10))}${p.edits.reason ? `: “${esc(p.edits.reason)}”` : ""} (${p.edits.changes.length} change${p.edits.changes.length === 1 ? "" : "s"}). Every report made with these weights says so.</p>` : ""}
     <div class="row" style="margin-top:8px">
       <button class="btn small" data-action="scoring-open">${locked ? "View scoring" : "✎ Edit scoring"}</button>
       ${locked ? "" : `<button class="btn small" data-action="policy-import">Import policy…</button>`}
@@ -1050,11 +1050,11 @@ function scoringPage(): string {
   return `<div class="row"><button class="btn small" data-action="scoring-discard">← Settings</button></div>
     <div><h1>Scoring</h1>
       <p class="lede">${ro ? "Your organization manages these, so they are read-only here." : "The whole policy, editable here: the threshold, the points, and each question's wording. Nothing changes until you save."}</p></div>
-    <div class="status warn scnote"><div><b>Please don't tune these for one vendor.</b> ${RESEARCH_NOTE} Changing them changes every assessment made on this computer. Each change needs a written reason, and every report, PDF and export made with edited weights says they were edited, what changed and why.</div></div>
+    <div class="status warn scnote"><div><b>Please don't tune these for one vendor.</b> ${RESEARCH_NOTE} Changing them changes every assessment made on this computer. Reports, PDFs and exports made with edited weights say so, and list what changed.</div></div>
     ${tabs}
     ${sc.tab === "thresholds" ? thresholds : SECTIONS.map(section).join("")}
     ${ro ? "" : `<div class="scfoot card"><div id="sc-status"></div>
-      <label class="f">Why are you changing these?<textarea id="sc-reason" data-sc="reason" rows="2" placeholder="e.g., Our regulator treats customer-data retention as a hard stop.">${esc(sc.reason)}</textarea></label>
+      <label class="f">Note (optional)<textarea id="sc-reason" data-sc="reason" rows="2" placeholder="Why, if you want it kept with the policy">${esc(sc.reason)}</textarea></label>
       <div class="row" style="margin-top:8px"><button class="btn primary" id="sc-save" data-action="scoring-save" disabled>Save</button><button class="btn" data-action="scoring-discard">Discard changes</button></div></div>`}`;
 }
 
@@ -1790,7 +1790,6 @@ const actions: Record<string, () => unknown> = {
     if (!edited) {
       delete S.user.policy; // identical to the baseline: nothing to remember
     } else {
-      if (!(await ask(`Save ${edited.edits!.changes.length} change(s) to the scoring weights? Every report made with them will say they were edited, and why.`, { title: "Save weights", kind: "warning" }))) return;
       S.user.policy = validatePolicy(edited);
     }
     saveUserSettings(S.user);
