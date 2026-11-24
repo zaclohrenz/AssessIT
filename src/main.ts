@@ -9,7 +9,7 @@ import { APP_VERSION, changedFromAi, STATUSES, decisionTone, fmtPts, listFields,
 import { extractUrls, linkLabel } from "./links";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
-import { percent, releaseUrl, type UpdateState } from "./update";
+import { percent, releaseUrl, SCORING_DOC_URL, type UpdateState } from "./update";
 import { aiAnswerCount, navStatus, sectionStatus, type Bubble, type BubbleKind } from "./status";
 import { manualPrompt, mergeResearch, parseManualResponse, researchPrompt, researchSchema, type ResearchOutput } from "./research";
 import {
@@ -970,7 +970,7 @@ function scoringCard(): string {
   const p = policy();
   const locked = isLocked("policy");
   return `<div class="card" id="scoring-card"><h2>Scoring</h2>
-    <p class="muted" style="margin-top:0">${RESEARCH_NOTE} See SCORING.md.</p>
+    <p class="muted" style="margin-top:0">${RESEARCH_NOTE} See <button class="srclink" data-url="${SCORING_DOC_URL}" title="${SCORING_DOC_URL}">SCORING.md ↗</button>.</p>
     <div class="row"><b>${esc(p.name)} v${esc(p.version)}</b><span class="muted">${policySourceLabel()}</span>${locked ? ` <span class="lock" title="Set by your organization's config">🔒 managed</span>` : ""}
       ${p.edits ? `<span class="tag warn">edited locally</span>` : ""}</div>
     <p class="muted" style="margin:6px 0 0">Threshold of acceptable risk: <b>${approvalLimit(p) ?? "none"}</b>${approvalLimit(p) !== approvalLimit(baselinePolicy()) ? ` (standard ${approvalLimit(baselinePolicy())})` : ""}. ${p.factors.filter((f) => f.enabled).length} questions on.</p>
