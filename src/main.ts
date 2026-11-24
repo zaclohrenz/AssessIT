@@ -298,6 +298,19 @@ async function installUpdate() {
 /** The small "i": hover, click or focus it to see where the score comes from. */
 const infoButton = () => `<button type="button" class="info" aria-label="How is this score calculated?" aria-expanded="false">i</button>`;
 
+function limitBlock(b: NonNullable<ReturnType<typeof scoreBreakdown>>): string {
+  const l = b.limit;
+  if (!l) return "";
+  return `<dl class="ilimit">
+      <dt>Approval limit</dt><dd>${esc(l.limit)} <span class="muted">set by your policy</span></dd>
+      <dt>This vendor's score</dt><dd>${esc(b.score)} <span class="muted">(${esc(b.beforeMitigation)} before mitigations)</span></dd>
+      <dt>${esc(l.deltaLabel)}</dt><dd class="z-${l.zone}"><b>${esc(l.deltaAmount)}</b></dd>
+    </dl>
+    <div class="ibar2" role="img" aria-label="${l.percent}% of the approval limit"><i class="z-${l.zone}" style="width:${Math.round(l.fillTo * 100)}%"></i><u style="left:${Math.round(l.markAt * 100)}%"></u></div>
+    <div class="ibar2-note"><span class="z-${l.zone}"><b>${l.percent}%</b> of the limit</span><span class="muted">100% = the limit</span></div>
+    <div class="idetail">${esc(l.note)}</div>`;
+}
+
 function breakdownHtml(): string {
   const r = result();
   const b = scoreBreakdown(r, policy());
@@ -314,7 +327,7 @@ function breakdownHtml(): string {
     <p class="muted iformula">Likelihood × Impact × Preference × (1 − Mitigation)</p>
     ${rows}
     <div class="iresult"><span>${esc(b.working)}</span><b>= ${esc(b.score)}</b></div>
-    ${b.against ? `<div class="idetail">That's <b>${esc(b.against)}</b>. Lower is better, and 100% is the line. Before mitigations it would be ${esc(b.beforeMitigation)}.</div>` : ""}
+    ${limitBlock(b)}
     <p class="muted ifoot">The Report tab shows every answer behind these.</p>`;
 }
 
@@ -394,7 +407,7 @@ function refreshHeader() {
   const tone = decisionTone(r.finalDecision);
   // The app shows a percentage of the approval limit, never raw points; the numbers are one hover away.
   const score = r.finalDecision === "Incomplete" ? `${r.requiredUnanswered.length} required left` : r.meter ? `${r.meter.percent}%` : r.band.name;
-  $("#score-pill")!.innerHTML = `<span class="pill ${tone}">${esc(r.finalDecision)} <span style="font-weight:400">${esc(score)}</span></span>${infoButton()}`;
+  $("#score-pill")!.innerHTML = `<span class="pill ${tone}">${esc(r.finalDecision)} <span style="font-weight:400">${esc(score)}${r.meter ? " of limit" : ""}</span></span>${infoButton()}`;
   if (pinnedInfo && !pinnedInfo.isConnected) hideInfo();
 }
 

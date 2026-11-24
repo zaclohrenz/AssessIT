@@ -83,6 +83,27 @@ export function scoreHeadline(r: Result): string {
   return r.meter ? `${r.meter.percent}%` : r.score.toFixed(1);
 }
 
+const ZONE_NOTE = {
+  green: "That's within the approval limit.",
+  yellow: "Mitigations could still bring this under the limit.",
+  red: "Even with every mitigation, this stays over the limit.",
+} as const;
+
+function limitComparison(m: NonNullable<Result["meter"]>, n1: (x: number) => string) {
+  const gap = Math.abs(m.percent - 100);
+  const scale = Math.max(m.percent, 100);
+  return {
+    limit: n1(m.limit),
+    percent: m.percent,
+    zone: m.zone,
+    deltaLabel: m.percent > 100 ? "Over the limit by" : m.percent < 100 ? "Under the limit by" : "Right at the limit",
+    deltaAmount: `${gap}%`,
+    note: ZONE_NOTE[m.zone],
+    markAt: 100 / scale,
+    fillTo: m.percent / scale,
+  };
+}
+
 /** For the screen: no points, just what the percentage means. The breakdown lives in `scoreTooltip`. */
 export function scoreCaptionPlain(r: Result): string {
   if (r.finalDecision === "Incomplete") return "Answer every required question to see it";
@@ -108,6 +129,20 @@ export interface Breakdown {
   beforeMitigation: string;
   /** "92% of the approval limit (58)", or "" when the policy has no limit. */
   against: string;
+  /** The comparison block at the bottom; null when the policy has no approval limit. */
+  limit: null | {
+    limit: string;
+    percent: number;
+    zone: "green" | "yellow" | "red";
+    /** "Over the limit" / "Under the limit" with the gap: 19%, 38%. */
+    deltaLabel: string;
+    deltaAmount: string;
+    /** Whether mitigations can still fix it, in words. */
+    note: string;
+    /** Where the 100% line sits along the bar, 0 to 1, and how full the bar is. */
+    markAt: number;
+    fillTo: number;
+  };
 }
 
 /**
@@ -144,6 +179,7 @@ export function scoreBreakdown(r: Result, p: { basePreferenceMultiplier: number;
     working: `${r.likelihood} × ${r.impact} × ${n1(r.preference)} × (1 − ${Math.round(r.mitigationApplied * 100)}%)`,
     score: n1(r.score),
     beforeMitigation: n1(r.unmitigated),
+    limit: r.meter ? limitComparison(r.meter, n1) : null,
     against: r.meter ? `${r.meter.percent}% of the approval limit (${n1(r.meter.limit)})` : "",
   };
 }
