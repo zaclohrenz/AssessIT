@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { percent, releaseUrl } from "../src/update";
 
@@ -10,5 +11,13 @@ describe("update helpers", () => {
     expect(percent(50, 200)).toBe(25);
     expect(percent(300, 200)).toBe(100);
     expect(percent(10, 0)).toBeNull();
+  });
+});
+
+describe("hard stop tooltip", () => {
+  it("the scoring page explains hard stop next to the toggle", () => {
+    const main = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
+    expect(main).toMatch(/Hard stop \$\{tip\(HARD_STOP_TIP\)\}/);
+    expect(main).toMatch(/HARD_STOP_TIP = "A dealbreaker\. If this answer is chosen, the vendor is Denied/);
   });
 });
