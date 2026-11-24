@@ -182,6 +182,10 @@ describe("the screen speaks in percent; the numbers are one hover away", () => {
     expect(b.parts[2].value).toBe(`×${r.preference.toFixed(1)}`);
     expect(b.parts[3].value).toBe(`−${Math.round(r.mitigationApplied * 100)}%`);
     expect(b.working).toContain(`${r.likelihood} × ${r.impact}`);
+    expect(b.working).toMatch(/× 0\.\d\d$|× 1\.00$/); // the multiplier itself, never "(1 − 15%)"
+    expect(b.working).not.toContain("(1");
+    expect(b.terms.map((x) => x.label.split(" ")[0])).toEqual(["Likelihood", "Impact", "Preferences", "Mitigations"]);
+    expect(b.terms.map((x) => x.value).join(" × ")).toBe(b.working);
     expect(b.score).toBe(r.score.toFixed(1));
     expect(b.against).toContain(`${r.meter!.percent}% of the approval limit`);
     for (const x of b.parts) expect(x.fill).toBeGreaterThanOrEqual(0), expect(x.fill).toBeLessThanOrEqual(1);
