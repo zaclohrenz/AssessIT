@@ -984,6 +984,10 @@ function scoringCard(): string {
     </div></div>`;
 }
 
+/** A small "i" that explains a term on hover or keyboard focus (the text is in data-tip, shown by CSS). */
+const tip = (text: string) => `<span class="tip" tabindex="0" role="note" aria-label="${esc(text)}" data-tip="${esc(text)}">i</span>`;
+const HARD_STOP_TIP = "A dealbreaker. If this answer is chosen, the vendor is Denied no matter how low the score is, and the score can't be mitigated back under it. Leave it at “none” for questions that should only add risk.";
+
 const UNIT: Record<Section, string> = { Likelihood: "pts", Impact: "pts", Preference: "× added", Mitigation: "% credit" };
 const pointsShown = (sec: Section, v: number) => (Number.isFinite(v) ? String(Math.round((sec === "Mitigation" ? v * 100 : v) * 1000) / 1000) : "");
 const SC_TABS: [ScTab, string][] = [["questions", "Questions"], ["thresholds", "Thresholds"]];
@@ -1039,7 +1043,7 @@ function scoringPage(): string {
       <div class="scflags">
         <label><input type="checkbox" data-sc="en" data-f="${fid}"${f.enabled ? " checked" : ""}${dis}> On</label>
         <label><input type="checkbox" data-sc="req" data-f="${fid}"${f.required ? " checked" : ""}${f.enabled ? "" : " disabled"}${dis}> Required</label>
-        <label>Hard stop <select data-sc="hs" data-f="${fid}"${dis}><option value="">none</option>${f.options.map((o) => `<option${f.hardStop === o.label ? " selected" : ""}>${esc(o.label)}</option>`).join("")}</select></label>
+        <label>Hard stop ${tip(HARD_STOP_TIP)} <select data-sc="hs" data-f="${fid}"${dis}><option value="">none</option>${f.options.map((o) => `<option${f.hardStop === o.label ? " selected" : ""}>${esc(o.label)}</option>`).join("")}</select></label>
         ${custom && !ro ? `<button class="btn small" data-scact="del" data-f="${fid}" style="margin-left:auto">Delete question</button>` : ""}
       </div>
       <details class="scedit"><summary>Edit wording, guidance and settings</summary>
