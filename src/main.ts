@@ -17,7 +17,7 @@ import {
   orgRules, saveCurrent,
   saveUserSettings, validatePolicy, type OrgConfig, type UserSettings,
 } from "./settings";
-import { approvalBandIndex, approvalLimit, clonePolicy, DECISIONS, diffPolicy, maxPossibleScore, newQuestion, reasonProblem, setApprovalLimit, TEXT_LIMITS, validateScoring, withEdits } from "./scoring";
+import { approvalLimit, clonePolicy, DECISIONS, diffPolicy, maxPossibleScore, newQuestion, reasonProblem, setApprovalLimit, TEXT_LIMITS, validateScoring, withEdits } from "./scoring";
 import type { Answer, Details, Factor, Policy, Reference, Section } from "./types";
 import {
   answerChip,
@@ -108,7 +108,7 @@ const S = {
   submitting: false,
   vuln: loadVuln(),
   /** The scoring editor's working copy. Nothing is saved until the person saves it with a reason. */
-  sc: null as null | { draft: Policy; reason: string; tab: "overall" | Section },
+  sc: null as null | { draft: Policy; reason: string; tab: ScTab },
   /** Last bubble state per nav item, so a change can "pop". */
   bubbles: {} as Record<string, string>,
 };
@@ -973,11 +973,11 @@ function scoringCard(): string {
 
 const UNIT: Record<Section, string> = { Likelihood: "pts", Impact: "pts", Preference: "× added", Mitigation: "% credit" };
 const pointsShown = (sec: Section, v: number) => (Number.isFinite(v) ? String(Math.round((sec === "Mitigation" ? v * 100 : v) * 1000) / 1000) : "");
-const SC_TABS: [ScTab, string][] = [["overall", "Threshold & bands"], ["Likelihood", "Likelihood"], ["Impact", "Impact"], ["Preference", "Preferences"], ["Mitigation", "Mitigations"]];
-type ScTab = "overall" | Section;
+const SC_TABS: [ScTab, string][] = [["questions", "Questions"], ["thresholds", "Thresholds"]];
+type ScTab = "questions" | "thresholds";
 
 function scoringPage(): string {
-  const sc = (S.sc ??= { draft: clonePolicy(policy()), reason: "", tab: "overall" });
+  const sc = (S.sc ??= { draft: clonePolicy(policy()), reason: "", tab: "questions" });
   const d = sc.draft;
   const ro = isLocked("policy");
   const dis = ro ? " disabled" : "";
@@ -987,14 +987,13 @@ function scoringPage(): string {
     `<label class="f">${label}${hint ? `<small>${hint}</small>` : ""}<textarea rows="${rows}" data-sc="text" data-f="${esc(f.id)}" data-k="${k}"${dis}>${esc(String((f as unknown as Record<string, string | undefined>)[k] ?? ""))}</textarea></label>`;
 
   const limit = approvalLimit(d) ?? 0;
-  const top = maxPossibleScore(d);
-  const k = approvalBandIndex(d);
-  const lo = k > 0 ? d.bands[k - 1].scoreMin + 1 : 1;
-  const overall = `<div class="card"><h2>Threshold of acceptable risk</h2>
-      <p class="muted" style="margin-top:0">The score at which a vendor stops being approvable. Every percentage in the app is measured against it: 100% is this line. Standard: <b>${approvalLimit(base) ?? "none"}</b>.</p>
+  const top = Math.max(maxPossibleScore(d), 1);
+  const pct = Math.min(100, Math.round((limit / top) * 1000) / 10);
+  const thresholds = `<div class="card"><h2>Threshold of acceptable risk</h2>
+      <p class="muted" style="margin-top:0">Where a vendor stops being approvable. Every percentage in the app is measured against it: 100% is this line. With the current weights, the highest score a vendor could reach is <b id="sc-top">${top}</b>. Standard: <b>${approvalLimit(base) ?? "none"}</b> (${Math.round(((approvalLimit(base) ?? 0) / Math.max(maxPossibleScore(base), 1)) * 1000) / 10}% of ${maxPossibleScore(base)}).</p>
       <div class="slider"><span class="muted">Stricter</span>
-        <input type="range" id="sc-limit" data-sc="limit" min="${lo}" max="${Math.max(top, limit, lo + 1)}" step="1" value="${limit}"${dis} aria-label="Threshold of acceptable risk">
-        <span class="muted">More accepting</span><output id="sc-limit-val"><b>${limit}</b></output></div>
+        <input type="range" id="sc-limit" data-sc="limit" min="0" max="100" step="0.1" value="${pct}"${dis} aria-label="Threshold of acceptable risk, as a percent of the highest possible score">
+        <span class="muted">More accepting</span><output id="sc-limit-val"><b>${limit}</b> <span class="muted">${pct}% of ${top}</span></output></div>
       <p class="muted" id="sc-limit-note"></p></div>
     <div class="card"><h2>Overall</h2><div class="grid2">
       <label class="f">Maximum mitigation credit (%)<small>The most the mitigations together can cut a score.</small>${num('data-sc="glob" data-k="maxMitigationCredit"', pointsShown("Mitigation", d.maxMitigationCredit))}</label>
@@ -1002,8 +1001,9 @@ function scoringPage(): string {
       <label class="f" style="flex-direction:row;gap:8px;align-items:center"><input type="checkbox" data-sc="cond"${d.mitigationsMakeConditional ? " checked" : ""}${dis}> Mitigations make an approval conditional</label>
     </div></div>
     <div class="card"><h2>Bands &amp; decisions</h2>
-    <table class="sctable"><tr><th>Band</th><th>Score from</th><th>Likelihood from</th><th>Impact from</th><th>Decision</th><th>Re-review (months)</th></tr>
-    ${d.bands.map((b, i) => `<tr><td>${esc(b.name)}</td>
+    <p class="muted" style="margin-top:0">Scores run from 0 to ${top} with the current weights, and each band covers the scores shown.</p>
+    <table class="sctable"><tr><th>Band</th><th>Covers scores</th><th>Score from</th><th>Likelihood from</th><th>Impact from</th><th>Decision</th><th>Re-review (months)</th></tr>
+    ${d.bands.map((b, i) => `<tr><td>${esc(b.name)}</td><td class="muted num">${b.scoreMin}–${i + 1 < d.bands.length ? d.bands[i + 1].scoreMin - 1 : Math.max(top, b.scoreMin)}</td>
       <td>${num(`data-sc="band" data-i="${i}" data-k="scoreMin"`, b.scoreMin)}</td>
       <td>${num(`data-sc="band" data-i="${i}" data-k="likelihoodMin"`, b.likelihoodMin)}</td>
       <td>${num(`data-sc="band" data-i="${i}" data-k="impactMin"`, b.impactMin)}</td>
@@ -1052,7 +1052,7 @@ function scoringPage(): string {
       <p class="lede">${ro ? "Your organization manages these, so they are read-only here." : "The whole policy, editable here: the threshold, the points, and each question's wording. Nothing changes until you save."}</p></div>
     <div class="status warn scnote"><div><b>Please don't tune these for one vendor.</b> ${RESEARCH_NOTE} Changing them changes every assessment made on this computer. Each change needs a written reason, and every report, PDF and export made with edited weights says they were edited, what changed and why.</div></div>
     ${tabs}
-    ${sc.tab === "overall" ? overall : section(sc.tab)}
+    ${sc.tab === "thresholds" ? thresholds : SECTIONS.map(section).join("")}
     ${ro ? "" : `<div class="scfoot card"><div id="sc-status"></div>
       <label class="f">Why are you changing these?<textarea id="sc-reason" data-sc="reason" rows="2" placeholder="e.g., Our regulator treats customer-data retention as a hard stop.">${esc(sc.reason)}</textarea></label>
       <div class="row" style="margin-top:8px"><button class="btn primary" id="sc-save" data-action="scoring-save" disabled>Save</button><button class="btn" data-action="scoring-discard">Discard changes</button></div></div>`}`;
@@ -1140,14 +1140,17 @@ function scoringInput(el: HTMLInputElement | HTMLSelectElement) {
   } else if (ds.sc === "reason") {
     sc.reason = el.value;
   } else if (ds.sc === "limit") {
-    const v = setApprovalLimit(d, Number(el.value));
+    const v = setApprovalLimit(d, (Number(el.value) / 100) * Math.max(maxPossibleScore(d), 1));
     // Keep the numbers on this page in step: the band cut-offs move with the limit.
     document.querySelectorAll<HTMLInputElement>('[data-sc=band][data-k=scoreMin]').forEach((inp) => {
       const b = d.bands[Number(inp.dataset.i)];
       if (b) inp.value = String(b.scoreMin);
     });
     const out = $("#sc-limit-val");
-    if (out) out.innerHTML = `<b>${v}</b>`;
+    const top = Math.max(maxPossibleScore(d), 1);
+    if (out) out.innerHTML = `<b>${v}</b> <span class="muted">${Math.round((v / top) * 1000) / 10}% of ${top}</span>`;
+    // The clamp may have moved it (it can't go below the band beneath), so show where it really landed.
+    (el as HTMLInputElement).value = String(Math.min(100, Math.round((v / top) * 1000) / 10));
   } else if (f && ds.sc === "text") {
     (f as unknown as Record<string, string>)[ds.k!] = el.value;
     if (ds.k === "question" || ds.k === "factor") {

@@ -94,11 +94,10 @@ From the original spreadsheet: an enterprise AI assistant with confidential (non
 
 ## Editing the policy
 
-**Settings → Scoring → Edit scoring** opens the whole policy on its own page, in tabs:
+**Settings → Scoring → Edit scoring** opens the whole policy on its own page, in two tabs:
 
-- **Threshold & bands:** a slider for the **threshold of acceptable risk** (where the first Denied band starts, which is the 100% line every percentage is measured against), plus the mitigation cap, the base preference multiplier and the bands. Moving the slider slides the bands above it by the same amount so they keep their spacing.
-- **Likelihood, Impact, Preferences, Mitigations:** each question with its full text, the points each answer adds, on/required, and the hard stop. Open **Edit wording, guidance and settings** to change the question, how to find the answer, where to look, what to do when unsure, why it matters, whether AI can research it, its basis, and whether assessors may ignore it.
-- **Add a question** in any tab (it gets the next free ID, like L16). Word it so Yes is the good answer, like the standard questions. Questions you add can have their answers added, removed and renamed; standard questions keep their answer labels, because saved assessments refer to them. You can switch a standard question off but not delete it.
+- **Questions:** every question, grouped by section, with its full text, the points each answer adds, on/required and the hard stop. Open **Edit wording, guidance and settings** to change the question, how to find the answer, where to look, what to do when unsure, why it matters, whether AI can research it, its basis, and whether assessors may ignore it. **Add a question** in any section (it gets the next free ID, like L16). Word it so Yes is the good answer, like the standard questions. Questions you add can have their answers added, removed and renamed; standard questions keep their answer labels, because saved assessments refer to them. You can switch a standard question off but not delete it.
+- **Thresholds:** a slider for the **threshold of acceptable risk** (where the first Denied band starts, which is the 100% line every percentage is measured against). The slider is a percent of the highest score the current weights can produce, and starts wherever the current threshold sits on that scale. Below it are the mitigation cap, the base preference multiplier, and the bands (each with the range of scores it covers). Moving the slider slides the bands above it by the same amount so they keep their spacing.
 
 The defaults follow NIST CSF 2.0, the NIST AI RMF and CISA guidance. They are not meant to be tuned to change the result for one vendor, so the editor makes every change visible:
 
