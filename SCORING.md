@@ -88,7 +88,7 @@ From the original spreadsheet: an enterprise AI assistant with confidential (non
 | SSO + automated provisioning: Yes | Mitigation | **−5%** |
 
 ```
-9 × 5 × 1.0 × (1 − 0.05) = 42.75   →   Low band (29+)   →   Approved
+9 × 5 × 1.0 × 0.95 = 42.75   →   Low band (29+)   →   Approved
                                         + a mitigation was credited → Approved with Conditions
 ```
 

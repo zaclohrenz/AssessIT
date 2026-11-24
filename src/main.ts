@@ -327,9 +327,8 @@ function breakdownHtml(): string {
     )
     .join("");
   return `<h4>Where the score comes from</h4>
-    <p class="muted iformula">Likelihood × Impact × Preference × (1 − Mitigation)</p>
     ${rows}
-    <div class="iresult"><span>${esc(b.working)}</span><b>= ${esc(b.score)}</b></div>
+    <div class="iresult"><div class="iterms">${b.terms.map((t, i) => `${i ? `<span class="ix">×</span>` : ""}<div class="iterm"><b>${esc(t.value)}</b><small>${esc(t.label)}</small></div>`).join("")}<span class="ix">=</span><div class="iterm"><b>${esc(b.score)}</b><small>Score</small></div></div></div>
     ${limitBlock(b)}
     <p class="muted ifoot">The Report tab shows every answer behind these.</p>`;
 }

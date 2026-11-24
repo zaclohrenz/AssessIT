@@ -337,3 +337,8 @@ nav button.upd:hover { background: var(--muted-bg); }
 .scedit { margin-top: 8px; }
 .scedit > summary { cursor: pointer; font-size: 13px; color: var(--navy); }
 .scedit label.f { margin: 8px 0; }
+.infopop .iterms { display: flex; align-items: flex-start; gap: 6px; flex-wrap: wrap; }
+.infopop .iterm { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.infopop .iterm b { font-size: 16px; }
+.infopop .iterm small { font-size: 10.5px; color: var(--muted); max-width: 70px; line-height: 1.2; }
+.infopop .ix { color: var(--muted); padding-top: 2px; }

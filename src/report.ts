@@ -124,8 +124,10 @@ export interface BreakdownPart {
 
 export interface Breakdown {
   parts: BreakdownPart[];
-  /** "9 × 5 × 1.5 × (1 − 10%)" */
+  /** "9 × 5 × 1.5 × 0.90" */
   working: string;
+  /** The same working split into its four numbers, each with its name, for the line under the formula. */
+  terms: { value: string; label: string }[];
   score: string;
   beforeMitigation: string;
   /** "92% of the approval limit (58)", or "" when the policy has no limit. */
@@ -177,7 +179,13 @@ export function scoreBreakdown(r: Result, p: { basePreferenceMultiplier: number;
         fill: frac(r.mitigationApplied, p.maxMitigationCredit),
       },
     ],
-    working: `${r.likelihood} × ${r.impact} × ${n1(r.preference)} × (1 − ${Math.round(r.mitigationApplied * 100)}%)`,
+    working: `${r.likelihood} × ${r.impact} × ${n1(r.preference)} × ${(1 - r.mitigationApplied).toFixed(2)}`,
+    terms: [
+      { value: String(r.likelihood), label: "Likelihood" },
+      { value: String(r.impact), label: "Impact" },
+      { value: n1(r.preference), label: "Preferences" },
+      { value: (1 - r.mitigationApplied).toFixed(2), label: `Mitigations (${Math.round(r.mitigationApplied * 100)}% off)` },
+    ],
     score: n1(r.score),
     beforeMitigation: n1(r.unmitigated),
     limit: r.meter ? limitComparison(r.meter, n1) : null,
