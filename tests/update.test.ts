@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { percent, releaseUrl } from "../src/update";
+import { readFileSync } from "node:fs";
+import { percent, releaseUrl, SCORING_DOC_URL } from "../src/update";
 
 describe("update helpers", () => {
   it("links to the release tag", () => {
@@ -10,5 +11,13 @@ describe("update helpers", () => {
     expect(percent(50, 200)).toBe(25);
     expect(percent(300, 200)).toBe(100);
     expect(percent(10, 0)).toBeNull();
+  });
+});
+
+describe("scoring doc link", () => {
+  it("points at SCORING.md on the main branch, over https, and Settings uses it", () => {
+    expect(SCORING_DOC_URL).toBe("https://github.com/zaclohrenz/AssessIT/blob/main/SCORING.md");
+    const main = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
+    expect(main).toMatch(/data-url="\$\{SCORING_DOC_URL\}"[^>]*>SCORING\.md/);
   });
 });

@@ -2,6 +2,8 @@
 // tauri-plugin-updater; main.ts drives it. Only the pure bits live here, so they can be tested.
 
 const RELEASES_URL = "https://github.com/zaclohrenz/AssessIT/releases";
+/** The scoring write-up on the main branch, opened in the browser from Settings. */
+export const SCORING_DOC_URL = "https://github.com/zaclohrenz/AssessIT/blob/main/SCORING.md";
 export const releaseUrl = (version: string) => `${RELEASES_URL}/tag/v${version.replace(/^v/, "")}`;
 
 export type UpdateState =
