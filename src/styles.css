@@ -271,6 +271,15 @@ nav button.upd:hover { background: var(--muted-bg); }
 .infopop .ibar i.good { background: var(--go); }
 .infopop .idetail { color: var(--muted); font-size: 12px; }
 .infopop .iresult { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.infopop .ilimit { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 10px 0 6px; font-variant-numeric: tabular-nums; }
+.infopop .ilimit dt { color: var(--muted); }
+.infopop .ilimit dd { margin: 0; text-align: right; }
+.infopop .ibar2 { position: relative; height: 10px; border-radius: 5px; background: var(--muted-bg); margin: 8px 0 4px; }
+.infopop .ibar2 i { display: block; height: 100%; border-radius: 5px; }
+.infopop .ibar2 u { position: absolute; top: -3px; bottom: -3px; width: 3px; margin-left: -1px; background: var(--ink); border-radius: 2px; text-decoration: none; }
+.infopop .ibar2-note { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+.infopop .z-green { color: var(--go); } .infopop .z-yellow { color: var(--warn); } .infopop .z-red { color: var(--bad); }
+.infopop .ibar2 i.z-green { background: var(--go); } .infopop .ibar2 i.z-yellow { background: #e0a800; } .infopop .ibar2 i.z-red { background: #c0392b; }
 .infopop .ifoot { font-size: 11.5px; margin-bottom: 0; }
 .meter { margin: 0 0 10px; }
 .meter .track { position: relative; display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--muted-bg); }
