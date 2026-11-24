@@ -140,6 +140,13 @@ export const orgRules = (org: OrgConfig | null): OrgRules => ({ ...DEFAULT_RULES
 export const FACTOR_ID = /^[A-Za-z][A-Za-z0-9_-]{0,15}$/;
 const POLICY_VERSION = /^[A-Za-z0-9._+-]{1,20}$/;
 
+/** The edit record is shown on reports, so it is rebuilt from plain strings and kept short. */
+function cleanEdits(e: any): Policy["edits"] {
+  if (!e || typeof e !== "object" || typeof e.at !== "string" || typeof e.reason !== "string") return undefined;
+  const changes = Array.isArray(e.changes) ? e.changes.filter((c: unknown) => typeof c === "string").slice(0, 200).map((c: string) => c.slice(0, 200)) : [];
+  return { at: e.at.slice(0, 40), reason: e.reason.slice(0, 500), changes };
+}
+
 export function validatePolicy(p: any): Policy {
   if (!p || !Array.isArray(p.factors) || !Array.isArray(p.bands) || !p.bands.length)
     throw new Error("Not a policy file: needs 'factors' and 'bands'.");
@@ -156,6 +163,21 @@ export function validatePolicy(p: any): Policy {
     if (!["Likelihood", "Impact", "Preference", "Mitigation"].includes(f.section))
       throw new Error(`Factor ${f.id}: unknown section "${f.section}".`);
   }
+  const fin = (x: unknown, what: string) => {
+    if (typeof x !== "number" || !Number.isFinite(x) || Math.abs(x) > 1000) throw new Error(`${what} must be a number.`);
+  };
+  for (const f of p.factors)
+    for (const o of f.options) {
+      if (typeof o?.label !== "string") throw new Error(`Factor ${f.id}: every answer needs a label.`);
+      fin(o.points, `Factor ${f.id} “${o.label}”: points`);
+    }
+  for (const b of p.bands) {
+    fin(b.scoreMin, "A band's score cut-off");
+    fin(b.likelihoodMin, "A band's likelihood cut-off");
+    fin(b.impactMin, "A band's impact cut-off");
+  }
+  if (p.maxMitigationCredit !== undefined) fin(p.maxMitigationCredit, "Max mitigation credit");
+  if (p.basePreferenceMultiplier !== undefined) fin(p.basePreferenceMultiplier, "Base preference multiplier");
   for (let i = 1; i < p.bands.length; i++)
     if (p.bands[i].scoreMin <= p.bands[i - 1].scoreMin) throw new Error("Band minimums must increase top to bottom.");
   return {
@@ -166,6 +188,7 @@ export function validatePolicy(p: any): Policy {
     maxMitigationCredit: p.maxMitigationCredit ?? 0.25,
     mitigationsMakeConditional: p.mitigationsMakeConditional ?? true,
     bands: p.bands,
+    edits: cleanEdits(p.edits),
     factors: p.factors.map((f: any) => ({
       enabled: true,
       required: false,

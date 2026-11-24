@@ -52,6 +52,13 @@ export interface Band {
   justification: string;
 }
 
+/** Set when a person changed the weights on this computer: what changed, when and why. Printed on every report. */
+export interface PolicyEdits {
+  at: string;
+  reason: string;
+  changes: string[];
+}
+
 export interface Policy {
   name: string;
   version: number;
@@ -62,6 +69,7 @@ export interface Policy {
   mitigationsMakeConditional: boolean;
   bands: Band[];
   factors: Factor[];
+  edits?: PolicyEdits;
 }
 
 export type AnswerOrigin = "user" | "ai";

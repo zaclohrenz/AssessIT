@@ -92,6 +92,22 @@ From the original spreadsheet: an enterprise AI assistant with confidential (non
                                         + a mitigation was credited → Approved with Conditions
 ```
 
+## Editing the policy
+
+**Settings → Scoring → Edit scoring** opens the whole policy on its own page, in two tabs:
+
+- **Questions:** every question, grouped by section, with its full text, the points each answer adds, on/required and the hard stop. Open **Edit wording, guidance and settings** to change the question, how to find the answer, where to look, what to do when unsure, why it matters, whether AI can research it, its basis, and whether assessors may ignore it. **Add a question** in any section (it gets the next free ID, like L16). Word it so Yes is the good answer, like the standard questions. Questions you add can have their answers added, removed and renamed; standard questions keep their answer labels, because saved assessments refer to them. You can switch a standard question off but not delete it.
+- **Thresholds:** a slider for the **threshold of acceptable risk** (where the first Denied band starts, which is the 100% line every percentage is measured against). The slider is a percent of the highest score the current weights can produce, and starts wherever the current threshold sits on that scale. Below it are the mitigation cap, the base preference multiplier, and the bands (each with the range of scores it covers). Moving the slider slides the bands above it by the same amount so they keep their spacing.
+
+The defaults follow NIST CSF 2.0, the NIST AI RMF and CISA guidance. They are not meant to be tuned to change the result for one vendor, so the editor makes every change visible:
+
+- Nothing is saved until you press **Save**. You can add a note about why; it is optional.
+- Every changed question is highlighted, and the full list of changes against the standard policy is shown before you save: points, rewording, added or removed questions and answers, the threshold, the bands.
+- The saved policy carries the date, the reason and the list of changes. Every report, PDF, Excel export and webhook/SharePoint submission says the policy was **edited locally** and adds a review flag (with your note, if you wrote one), so an approver sees it.
+- Values are range-checked (points 0–10 for likelihood and impact, mitigation credit 0–50%, the first band starts at 0, one band must be Denied, text lengths, no empty or duplicate answer labels). A policy imported from a file or URL gets the same number checks, and everything is escaped wherever it is printed.
+- If an organization config locks the policy, the page is read-only.
+- The edits live only on this computer. To share them, use **Export policy** or **Export org config**.
+
 ## Where the defaults come from
 
 AssessIT's defaults follow published guidance. **NIST tells you *what* to assess, not how many points each thing is worth.** So the rules are:

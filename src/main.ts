@@ -17,7 +17,8 @@ import {
   orgRules, saveCurrent,
   saveUserSettings, validatePolicy, type OrgConfig, type UserSettings,
 } from "./settings";
-import type { Answer, Details, Factor, Reference, Section } from "./types";
+import { approvalLimit, clonePolicy, DECISIONS, diffPolicy, maxPossibleScore, newQuestion, reasonProblem, setApprovalLimit, TEXT_LIMITS, validateScoring, withEdits } from "./scoring";
+import type { Answer, Details, Factor, Policy, Reference, Section } from "./types";
 import {
   answerChip,
   cisaResult,
@@ -42,7 +43,7 @@ import {
   type VulnKey,
 } from "./ssvc";
 
-type Tab = "request" | "questions" | "report" | "settings" | "vuln";
+type Tab = "request" | "questions" | "report" | "settings" | "scoring" | "vuln";
 type Filter = "all" | "review" | "unanswered";
 
 interface ClaudeStatus { path: string | null; version: string | null; logged_in: boolean; account: string | null; error: string | null }
@@ -106,6 +107,8 @@ const S = {
   device: null as DeviceCode | null,
   submitting: false,
   vuln: loadVuln(),
+  /** The scoring editor's working copy. Nothing is saved until the person saves it. */
+  sc: null as null | { draft: Policy; reason: string; tab: ScTab },
   /** Last bubble state per nav item, so a change can "pop". */
   bubbles: {} as Record<string, string>,
 };
@@ -213,7 +216,7 @@ function bubble(key: string, kind: BubbleKind, text: string): string {
 function renderNav() {
   const st = navStatus(policy(), S.a, S.settings.submit);
   const item = (t: Tab, label: string, b: Bubble) =>
-    `<button class="${S.tab === t ? "active" : ""}" data-tab="${t}"><span>${label}</span>${bubble(t, ...b)}</button>`;
+    `<button class="${S.tab === t || (t === "settings" && S.tab === "scoring") ? "active" : ""}" data-tab="${t}"><span>${label}</span>${bubble(t, ...b)}</button>`;
   const subs = SECTIONS.filter((sec) => policy().factors.some((f) => f.section === sec && f.enabled))
     .map((sec) => `<button class="sub" data-section="${sec}"><span>${SECTION_LABEL[sec]}</span>${bubble(`sec-${sec}`, ...sectionStatus(policy(), S.a, sec))}</button>`)
     .join("");
@@ -420,6 +423,7 @@ function renderPage() {
   if (S.tab === "questions") page.innerHTML = questionsPage();
   if (S.tab === "report") page.innerHTML = reportPage();
   if (S.tab === "settings") page.innerHTML = settingsPage();
+  if (S.tab === "scoring") page.innerHTML = scoringPage();
   if (S.tab === "vuln") page.innerHTML = vulnPage();
   // Re-rendering the same tab (status changes, filters) keeps the reader's place.
   if (renderedTab !== S.tab) $("main")!.scrollTop = 0;
@@ -803,7 +807,7 @@ function meterHtml(r: Result): string {
 }
 
 function sendCard(): string {
-  const flags = reviewFlags(result(), S.a);
+  const flags = reviewFlags(result(), S.a, policy());
   const yolo = flags.length > 0;
   const blocked = yolo && !rules().allowYolo;
   const sent = S.a.submitted;
@@ -900,7 +904,6 @@ function reportBody(): string {
 function settingsPage(): string {
   const s = S.settings;
   const sub = s.submit;
-  const p = policy();
   const c = S.claude;
   const lock = (path: string) => (isLocked(path) ? " disabled" : "");
   const lockNote = (path: string) => (isLocked(path) ? ` <span class="lock" title="Set by your organization's config">🔒 managed</span>` : "");
@@ -908,13 +911,6 @@ function settingsPage(): string {
     `<label class="f">${label}${lockNote(path)}<input type="${type}" data-setting="${path}" value="${esc(value)}"${lock(path)}>${hint ? `<small>${hint}</small>` : ""}</label>`;
   const radio = (m: string, label: string, hint: string) =>
     `<label style="display:flex;gap:8px;align-items:flex-start;margin:6px 0"><input type="radio" name="method" data-setting="submit.method" value="${m}" ${sub.method === m ? "checked" : ""}${lock("submit.method")}><span><b>${label}</b><br><small class="muted">${hint}</small></span></label>`;
-  const factorRows = p.factors
-    .map((f) => `<tr><td>${esc(f.id)}</td><td>${f.section}</td><td>${esc(f.factor)}</td><td>${f.options.map((o) => `${esc(o.label)} = ${o.points}`).join(", ")}</td><td>${f.enabled ? (f.required ? "Required" : "Optional") : "Off"}</td><td>${esc(f.hardStop ?? "")}</td></tr>`)
-    .join("");
-  const bandRows = p.bands
-    .map((b) => `<tr><td>${esc(b.name)}</td><td class="num">${b.scoreMin}+</td><td>${esc(b.decision)}</td><td class="num">${b.reReviewMonths} mo</td></tr>`)
-    .join("");
-
   let graph = "";
   if (sub.method === "sharepoint") {
     const dev = S.device;
@@ -937,6 +933,7 @@ function settingsPage(): string {
 
   return `
     <div><h1>Settings</h1><p class="lede">Usually set once by an admin and shared through an org config, so users never touch this page.</p></div>
+    ${scoringCard()}
     <div class="card" id="config-card">${configCard()}</div>
     <div class="card"><h2>Organization</h2><div class="grid2">
       ${field("org.orgName", "Organization name", s.org.orgName, "Used in the draft outcome message.")}
@@ -958,19 +955,235 @@ function settingsPage(): string {
       ${sub.method === "webhook" ? `<div style="margin-top:10px">${field("submit.webhookUrl", "Webhook URL", sub.webhookUrl, "Treat this URL like a password if the flow allows anonymous calls.", "url")}<div class="row" style="margin-top:8px"><button class="btn small" data-action="webhook-test">Send test</button></div></div>` : ""}
       ${graph}
     </div>
-    <div class="card"><h2>Scoring policy</h2>
-      <p class="muted" style="margin-top:0">Risk Score = Likelihood × Impact × Preference multiplier × (1 − Mitigation credit). Points, bands and hard stops come from the policy file. Users never do the math.</p>
-      <div class="row"><b>${esc(p.name)} v${esc(p.version)}</b><span class="muted">${policySourceLabel()}</span>${lockNote("policy")}<div style="flex:1"></div>
-        ${isLocked("policy") ? "" : `<button class="btn small" data-action="policy-import">Import policy…</button>`}
-        <button class="btn small" data-action="policy-export">Export policy…</button>
-        ${S.user.policy && !isLocked("policy") ? `<button class="btn small" data-action="policy-reset">Use ${S.remote.config?.policy ? "organization" : "default"} policy</button>` : ""}</div>
-      <p class="muted">Defaults follow published guidance (NIST CSF 2.0, NIST AI RMF, CISA). Each question shows its basis; see SCORING.md.</p>
-      <details style="margin-top:12px"><summary>Bands &amp; decisions</summary><table><tr><th>Band</th><th>Score</th><th>Decision</th><th>Re-review</th></tr>${bandRows}</table>
-        <p class="muted">Max mitigation credit ${Math.round(p.maxMitigationCredit * 100)}% · base preference ×${p.basePreferenceMultiplier} · mitigations ${p.mitigationsMakeConditional ? "make" : "don't make"} approval conditional.</p></details>
-      <details style="margin-top:8px"><summary>Factors (${p.factors.length})</summary><table><tr><th>ID</th><th>Section</th><th>Factor</th><th>Points</th><th>Status</th><th>Hard stop</th></tr>${factorRows}</table></details>
-    </div>
     <div class="card"><h2>Share these settings</h2><p class="muted" style="margin-top:0">Export everything on this page as an org config file. Host it anywhere HTTPS (SharePoint, an intranet, a GitHub repo), then point everyone's AssessIT at it. See “Rolling it out” in the README.</p>
       <div class="row"><button class="btn small" data-action="config-export">Export org config…</button><button class="btn small" data-action="config-import">Import a config file…</button></div></div>`;
+}
+
+
+// ---------------- Scoring: summary on Settings, editor on its own page ----------------
+
+/** The weights as the org (or the built-in defaults) ship them, ignoring this person's own edits. */
+const baselinePolicy = (): Policy => activePolicy(effectiveSettings({ ...S.user, policy: undefined }, S.remote.config));
+
+const RESEARCH_NOTE = "These weights follow NIST CSF 2.0, the NIST AI RMF and CISA guidance, and each question shows its basis. They are not meant to be tuned to change the result for one vendor.";
+
+function scoringCard(): string {
+  const p = policy();
+  const locked = isLocked("policy");
+  return `<div class="card" id="scoring-card"><h2>Scoring</h2>
+    <p class="muted" style="margin-top:0">${RESEARCH_NOTE} See SCORING.md.</p>
+    <div class="row"><b>${esc(p.name)} v${esc(p.version)}</b><span class="muted">${policySourceLabel()}</span>${locked ? ` <span class="lock" title="Set by your organization's config">🔒 managed</span>` : ""}
+      ${p.edits ? `<span class="tag warn">edited locally</span>` : ""}</div>
+    <p class="muted" style="margin:6px 0 0">Threshold of acceptable risk: <b>${approvalLimit(p) ?? "none"}</b>${approvalLimit(p) !== approvalLimit(baselinePolicy()) ? ` (standard ${approvalLimit(baselinePolicy())})` : ""}. ${p.factors.filter((f) => f.enabled).length} questions on.</p>
+    ${p.edits ? `<p class="muted">Changed ${esc(p.edits.at.slice(0, 10))}${p.edits.reason ? `: “${esc(p.edits.reason)}”` : ""} (${p.edits.changes.length} change${p.edits.changes.length === 1 ? "" : "s"}). Every report made with these weights says so.</p>` : ""}
+    <div class="row" style="margin-top:8px">
+      <button class="btn small" data-action="scoring-open">${locked ? "View scoring" : "✎ Edit scoring"}</button>
+      ${locked ? "" : `<button class="btn small" data-action="policy-import">Import policy…</button>`}
+      <button class="btn small" data-action="policy-export">Export policy…</button>
+      ${S.user.policy && !locked ? `<button class="btn small" data-action="policy-reset">Back to ${S.remote.config?.policy ? "organization" : "standard"} weights</button>` : ""}
+    </div></div>`;
+}
+
+const UNIT: Record<Section, string> = { Likelihood: "pts", Impact: "pts", Preference: "× added", Mitigation: "% credit" };
+const pointsShown = (sec: Section, v: number) => (Number.isFinite(v) ? String(Math.round((sec === "Mitigation" ? v * 100 : v) * 1000) / 1000) : "");
+const SC_TABS: [ScTab, string][] = [["questions", "Questions"], ["thresholds", "Thresholds"]];
+type ScTab = "questions" | "thresholds";
+
+function scoringPage(): string {
+  const sc = (S.sc ??= { draft: clonePolicy(policy()), reason: "", tab: "questions" });
+  const d = sc.draft;
+  const ro = isLocked("policy");
+  const dis = ro ? " disabled" : "";
+  const base = baselinePolicy();
+  const num = (attrs: string, v: number | string) => `<input type="number" step="any" ${attrs} value="${esc(String(v))}"${dis}>`;
+  const txt = (f: Factor, k: string, label: string, hint = "", rows = 2) =>
+    `<label class="f">${label}${hint ? `<small>${hint}</small>` : ""}<textarea rows="${rows}" data-sc="text" data-f="${esc(f.id)}" data-k="${k}"${dis}>${esc(String((f as unknown as Record<string, string | undefined>)[k] ?? ""))}</textarea></label>`;
+
+  const limit = approvalLimit(d) ?? 0;
+  const top = Math.max(maxPossibleScore(d), 1);
+  const pct = Math.min(100, Math.round((limit / top) * 1000) / 10);
+  const thresholds = `<div class="card"><h2>Threshold of acceptable risk</h2>
+      <p class="muted" style="margin-top:0">Where a vendor stops being approvable. Every percentage in the app is measured against it: 100% is this line. With the current weights, the highest score a vendor could reach is <b id="sc-top">${top}</b>. Standard: <b>${approvalLimit(base) ?? "none"}</b> (${Math.round(((approvalLimit(base) ?? 0) / Math.max(maxPossibleScore(base), 1)) * 1000) / 10}% of ${maxPossibleScore(base)}).</p>
+      <div class="slider"><span class="muted">Stricter</span>
+        <input type="range" id="sc-limit" data-sc="limit" min="0" max="100" step="0.1" value="${pct}"${dis} aria-label="Threshold of acceptable risk, as a percent of the highest possible score">
+        <span class="muted">More accepting</span><output id="sc-limit-val"><b>${limit}</b> <span class="muted">${pct}% of ${top}</span></output></div>
+      <p class="muted" id="sc-limit-note"></p></div>
+    <div class="card"><h2>Overall</h2><div class="grid2">
+      <label class="f">Maximum mitigation credit (%)<small>The most the mitigations together can cut a score.</small>${num('data-sc="glob" data-k="maxMitigationCredit"', pointsShown("Mitigation", d.maxMitigationCredit))}</label>
+      <label class="f">Base preference multiplier<small>1 = organization preferences add nothing until a concern is found.</small>${num('data-sc="glob" data-k="basePreferenceMultiplier"', d.basePreferenceMultiplier)}</label>
+      <label class="f" style="flex-direction:row;gap:8px;align-items:center"><input type="checkbox" data-sc="cond"${d.mitigationsMakeConditional ? " checked" : ""}${dis}> Mitigations make an approval conditional</label>
+    </div></div>
+    <div class="card"><h2>Bands &amp; decisions</h2>
+    <p class="muted" style="margin-top:0">Scores run from 0 to ${top} with the current weights, and each band covers the scores shown.</p>
+    <table class="sctable"><tr><th>Band</th><th>Covers scores</th><th>Score from</th><th>Likelihood from</th><th>Impact from</th><th>Decision</th><th>Re-review (months)</th></tr>
+    ${d.bands.map((b, i) => `<tr><td>${esc(b.name)}</td><td class="muted num">${b.scoreMin}–${i + 1 < d.bands.length ? d.bands[i + 1].scoreMin - 1 : Math.max(top, b.scoreMin)}</td>
+      <td>${num(`data-sc="band" data-i="${i}" data-k="scoreMin"`, b.scoreMin)}</td>
+      <td>${num(`data-sc="band" data-i="${i}" data-k="likelihoodMin"`, b.likelihoodMin)}</td>
+      <td>${num(`data-sc="band" data-i="${i}" data-k="impactMin"`, b.impactMin)}</td>
+      <td><select data-sc="band" data-i="${i}" data-k="decision"${dis}>${DECISIONS.map((x) => `<option${b.decision === x ? " selected" : ""}>${x}</option>`).join("")}</select></td>
+      <td>${num(`data-sc="band" data-i="${i}" data-k="reReviewMonths"`, b.reReviewMonths)}</td></tr>`).join("")}</table></div>`;
+
+  const factorCard = (f: Factor) => {
+    const custom = !base.factors.some((x) => x.id === f.id);
+    const fid = esc(f.id);
+    const optRow = (o: Factor["options"][number], i: number) => `<div class="scoptrow">
+        ${custom ? `<input type="text" class="sclabel" data-sc="label" data-f="${fid}" data-i="${i}" value="${esc(o.label)}" maxlength="${TEXT_LIMITS.label}"${dis} aria-label="Answer">` : `<span class="sclabel">${esc(o.label)}</span>`}
+        ${num(`data-sc="pts" data-f="${fid}" data-i="${i}"`, pointsShown(f.section, o.points))}<small>${UNIT[f.section]}</small>
+        <input type="text" class="schint" data-sc="hint" data-f="${fid}" data-i="${i}" value="${esc(o.hint ?? "")}" placeholder="What choosing this means" maxlength="${TEXT_LIMITS.hint}"${dis} aria-label="Hint for ${esc(o.label)}">
+        ${custom && !ro && f.options.length > 2 ? `<button class="btn small" data-scact="delopt" data-f="${fid}" data-i="${i}" title="Remove this answer">✕</button>` : ""}</div>`;
+    return `<div class="scf" id="scf-${fid}">
+      <div class="schead"><b>${fid}</b><span class="scq">${esc(f.question || f.factor)}</span>
+        <span class="tag ${f.basis === "preference" ? "pref" : ""}">${custom ? "added by you" : f.basis === "preference" ? "your organization's value" : "standard"}</span></div>
+      <div class="scopts">${f.options.map(optRow).join("")}</div>
+      ${custom && !ro ? `<div class="row" style="margin-bottom:6px"><button class="btn small" data-scact="addopt" data-f="${fid}">+ Add an answer</button></div>` : ""}
+      <div class="scflags">
+        <label><input type="checkbox" data-sc="en" data-f="${fid}"${f.enabled ? " checked" : ""}${dis}> On</label>
+        <label><input type="checkbox" data-sc="req" data-f="${fid}"${f.required ? " checked" : ""}${f.enabled ? "" : " disabled"}${dis}> Required</label>
+        <label>Hard stop <select data-sc="hs" data-f="${fid}"${dis}><option value="">none</option>${f.options.map((o) => `<option${f.hardStop === o.label ? " selected" : ""}>${esc(o.label)}</option>`).join("")}</select></label>
+        ${custom && !ro ? `<button class="btn small" data-scact="del" data-f="${fid}" style="margin-left:auto">Delete question</button>` : ""}
+      </div>
+      <details class="scedit"><summary>Edit wording, guidance and settings</summary>
+        <label class="f">Short name<input type="text" data-sc="text" data-f="${fid}" data-k="factor" value="${esc(f.factor)}" maxlength="${TEXT_LIMITS.factor}"${dis}></label>
+        ${txt(f, "question", "Question", `Word it so “Yes” is the good answer, like the standard questions.`)}
+        ${txt(f, "guidance", "How to find the answer", "Shown under the question and given to the AI.", 3)}
+        ${txt(f, "lookWhere", "Common places to look", "Examples, not a limit.")}
+        ${txt(f, "unsure", "If you can't tell", "Overrides the standard “check the places above” line.")}
+        ${txt(f, "justification", "Why it matters", "", 3)}
+        <div class="grid2">
+          <label class="f">Where the answer comes from<select data-sc="research" data-f="${fid}"${dis}><option value="public"${f.research === "public" ? " selected" : ""}>Public sources (AI can research it)</option><option value="internal"${f.research === "internal" ? " selected" : ""}>Inside the organization</option></select></label>
+          <label class="f">Basis<select data-sc="basis" data-f="${fid}"${dis}><option value="standard"${f.basis === "standard" ? " selected" : ""}>Standard (published guidance)</option><option value="preference"${f.basis === "preference" ? " selected" : ""}>Organization's value choice</option></select></label>
+        </div>
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" data-sc="ign" data-f="${fid}"${f.ignorable ? " checked" : ""}${dis}> Assessors may ignore this question for one assessment</label>
+      </details></div>`;
+  };
+  const section = (sec: Section) => `<div class="card"><h2>${SECTION_LABEL[sec]}</h2>
+      ${d.factors.filter((f) => f.section === sec).map(factorCard).join("") || `<p class="muted">No questions.</p>`}
+      ${ro ? "" : `<div class="row" style="margin-top:10px"><button class="btn small" data-scact="add" data-sec="${sec}">+ Add a question</button><span class="muted">It appears in the questionnaire after you save.</span></div>`}</div>`;
+  const tabs = `<div class="sctabs" role="tablist">${SC_TABS.map(([t, label]) => `<button class="${sc.tab === t ? "active" : ""}" role="tab" aria-selected="${sc.tab === t}" data-sctab="${t}">${label}</button>`).join("")}</div>`;
+  return `<div class="row"><button class="btn small" data-action="scoring-discard">← Settings</button></div>
+    <div><h1>Scoring</h1>
+      <p class="lede">${ro ? "Your organization manages these, so they are read-only here." : "The whole policy, editable here: the threshold, the points, and each question's wording. Nothing changes until you save."}</p></div>
+    <div class="status warn scnote"><div><b>Please don't tune these for one vendor.</b> ${RESEARCH_NOTE} Changing them changes every assessment made on this computer. Reports, PDFs and exports made with edited weights say so, and list what changed.</div></div>
+    ${tabs}
+    ${sc.tab === "thresholds" ? thresholds : SECTIONS.map(section).join("")}
+    ${ro ? "" : `<div class="scfoot card"><div id="sc-status"></div>
+      <label class="f">Note (optional)<textarea id="sc-reason" data-sc="reason" rows="2" placeholder="Why, if you want it kept with the policy">${esc(sc.reason)}</textarea></label>
+      <div class="row" style="margin-top:8px"><button class="btn primary" id="sc-save" data-action="scoring-save" disabled>Save</button><button class="btn" data-action="scoring-discard">Discard changes</button></div></div>`}`;
+}
+
+function scoringClick(ds: DOMStringMap) {
+  const sc = S.sc;
+  if (!sc || isLocked("policy")) return;
+  const d = sc.draft;
+  const f = ds.f ? d.factors.find((x) => x.id === ds.f) : undefined;
+  if (ds.sctab) sc.tab = ds.sctab as typeof sc.tab;
+  else if (ds.scact === "add") {
+    const q = newQuestion(d, ds.sec as Section);
+    d.factors.push(q);
+    // Keep each section's questions together, in order.
+    d.factors.sort((x, y) => SECTIONS.indexOf(x.section) - SECTIONS.indexOf(y.section));
+  } else if (ds.scact === "del" && f) {
+    d.factors = d.factors.filter((x) => x !== f);
+  } else if (ds.scact === "addopt" && f) {
+    let n = f.options.length + 1;
+    while (f.options.some((o) => o.label === `Answer ${n}`)) n++;
+    f.options.push({ label: `Answer ${n}`, points: 0 });
+  } else if (ds.scact === "delopt" && f && f.options.length > 2) {
+    const [gone] = f.options.splice(Number(ds.i), 1);
+    if (f.hardStop === gone.label) f.hardStop = null;
+  }
+  renderPage();
+  refreshScoring();
+}
+
+function refreshScoring() {
+  const sc = S.sc;
+  if (!sc) return;
+  const errs = validateScoring(sc.draft);
+  const changes = diffPolicy(baselinePolicy(), sc.draft);
+  const rp = reasonProblem(sc.reason);
+  const box = $("#sc-status");
+  if (box)
+    box.innerHTML = errs.length
+      ? `<div class="status bad"><div><b>Can't save yet:</b><ul>${errs.map((e) => `<li>${esc(e)}</li>`).join("")}</ul></div></div>`
+      : changes.length
+        ? `<details open><summary><b>${changes.length} change${changes.length === 1 ? "" : "s"}</b> from the ${S.remote.config?.policy ? "organization" : "standard"} weights</summary><ul class="sclist">${changes.map((c) => `<li>${esc(c)}</li>`).join("")}</ul></details>${rp ? `<p class="muted">${esc(rp)}</p>` : ""}`
+        : `<p class="muted">No changes yet.</p>`;
+  const note = $("#sc-limit-note");
+  if (note) {
+    const now = approvalLimit(sc.draft), was = approvalLimit(baselinePolicy());
+    note.textContent = now === null || was === null || now === was ? "This is the standard threshold." : now > was ? `More accepting than standard: vendors up to ${now - 1} would be approvable, ${now - was} higher than standard.` : `Stricter than standard: vendors scoring ${now} or more are not approvable, ${was - now} lower than standard.`;
+  }
+  const save = $<HTMLButtonElement>("#sc-save");
+  if (save) save.disabled = !!errs.length || !changes.length || !!rp;
+  const hit = new Set(changes.map((c) => c.split(/[ :]/)[0]));
+  document.querySelectorAll<HTMLElement>(".scf").forEach((el) => el.classList.toggle("changed", hit.has(el.id.replace(/^scf-/, ""))));
+}
+
+/** One edit to the working copy. Values are clamped to numbers here; validateScoring reports what is out of range. */
+function scoringInput(el: HTMLInputElement | HTMLSelectElement) {
+  const sc = S.sc;
+  if (!sc || isLocked("policy")) return;
+  const ds = el.dataset;
+  const d = sc.draft;
+  const n = () => (el.value.trim() === "" ? NaN : Number(el.value));
+  const f = ds.f ? d.factors.find((x) => x.id === ds.f) : undefined;
+  if (ds.sc === "pts" && f) {
+    const v = n();
+    f.options[Number(ds.i)].points = f.section === "Mitigation" ? Math.round(v * 100) / 10000 : v;
+  } else if (ds.sc === "glob") {
+    const k = ds.k as "maxMitigationCredit" | "basePreferenceMultiplier";
+    d[k] = k === "maxMitigationCredit" ? Math.round(n() * 100) / 10000 : n();
+  } else if (ds.sc === "cond") {
+    d.mitigationsMakeConditional = (el as HTMLInputElement).checked;
+  } else if (ds.sc === "en" && f) {
+    f.enabled = (el as HTMLInputElement).checked;
+    if (!f.enabled) f.required = false;
+    const req = el.closest(".scf")?.querySelector<HTMLInputElement>("[data-sc=req]");
+    if (req) (req.disabled = !f.enabled), (req.checked = f.required);
+  } else if (ds.sc === "req" && f) {
+    f.required = (el as HTMLInputElement).checked;
+  } else if (ds.sc === "hs" && f) {
+    f.hardStop = el.value || null;
+  } else if (ds.sc === "band") {
+    const b = d.bands[Number(ds.i)];
+    if (!b) return;
+    if (ds.k === "decision") b.decision = el.value as (typeof b)["decision"];
+    else (b as unknown as Record<string, number>)[ds.k!] = n();
+  } else if (ds.sc === "reason") {
+    sc.reason = el.value;
+  } else if (ds.sc === "limit") {
+    const v = setApprovalLimit(d, (Number(el.value) / 100) * Math.max(maxPossibleScore(d), 1));
+    // Keep the numbers on this page in step: the band cut-offs move with the limit.
+    document.querySelectorAll<HTMLInputElement>('[data-sc=band][data-k=scoreMin]').forEach((inp) => {
+      const b = d.bands[Number(inp.dataset.i)];
+      if (b) inp.value = String(b.scoreMin);
+    });
+    const out = $("#sc-limit-val");
+    const top = Math.max(maxPossibleScore(d), 1);
+    if (out) out.innerHTML = `<b>${v}</b> <span class="muted">${Math.round((v / top) * 1000) / 10}% of ${top}</span>`;
+    // The clamp may have moved it (it can't go below the band beneath), so show where it really landed.
+    (el as HTMLInputElement).value = String(Math.min(100, Math.round((v / top) * 1000) / 10));
+  } else if (f && ds.sc === "text") {
+    (f as unknown as Record<string, string>)[ds.k!] = el.value;
+    if (ds.k === "question" || ds.k === "factor") {
+      const q = el.closest(".scf")?.querySelector(".scq");
+      if (q) q.textContent = f.question || f.factor;
+    }
+  } else if (f && ds.sc === "hint") {
+    f.options[Number(ds.i)].hint = el.value;
+  } else if (f && ds.sc === "label") {
+    const o = f.options[Number(ds.i)];
+    if (f.hardStop === o.label) f.hardStop = el.value;
+    o.label = el.value;
+  } else if (f && ds.sc === "research") {
+    f.research = el.value as Factor["research"];
+  } else if (f && ds.sc === "basis") {
+    f.basis = el.value as Factor["basis"];
+  } else if (f && ds.sc === "ign") {
+    f.ignorable = (el as HTMLInputElement).checked;
+  }
+  refreshScoring();
 }
 
 /** Records a user edit (stored apart from org config, so org updates still flow through). */
@@ -1399,7 +1612,7 @@ function confetti() {
 
 async function submit() {
   const r = result();
-  const flags = reviewFlags(r, S.a);
+  const flags = reviewFlags(r, S.a, policy());
   const sub = S.settings.submit;
   if (sub.method === "none") {
     S.tab = "settings";
@@ -1563,6 +1776,42 @@ const actions: Record<string, () => unknown> = {
     S.graphAccount = null;
     renderPage();
   },
+  "scoring-open": () => {
+    S.sc = null;
+    S.tab = "scoring";
+    renderNav();
+    renderPage();
+    refreshScoring();
+  },
+  "scoring-discard": async () => {
+    const sc = S.sc;
+    if (sc && !isLocked("policy") && diffPolicy(policy(), sc.draft).length && !(await ask("Throw away your unsaved changes to the weights?", { title: "Discard changes", kind: "warning" }))) return;
+    S.sc = null;
+    S.tab = "settings";
+    renderNav();
+    renderPage();
+  },
+  "scoring-save": async () => {
+    const sc = S.sc;
+    if (!sc || isLocked("policy")) return;
+    const errs = validateScoring(sc.draft);
+    if (errs.length) throw new Error(errs[0]);
+    const rp = reasonProblem(sc.reason);
+    if (rp) throw new Error(rp);
+    const base = baselinePolicy();
+    const edited = withEdits(base, sc.draft, sc.reason);
+    if (!edited) {
+      delete S.user.policy; // identical to the baseline: nothing to remember
+    } else {
+      S.user.policy = validatePolicy(edited);
+    }
+    saveUserSettings(S.user);
+    recomputeSettings();
+    S.sc = null;
+    S.tab = "settings";
+    render();
+    toast(edited ? "Weights saved. Reports now note they were edited." : "Back to the standard weights.");
+  },
   "policy-import": async () => {
     const file = await openJson(fileKind("Policy", "json"));
     if (!file) return;
@@ -1576,7 +1825,7 @@ const actions: Record<string, () => unknown> = {
     await saveJson("assessit-policy.json", fileKind("Policy", "json"), policy());
   },
   "policy-reset": async () => {
-    if (!(await ask("Stop using the policy you imported?", { title: "Reset policy" }))) return;
+    if (!(await ask("Go back to the standard weights? Your imported or edited policy is removed.", { title: "Reset weights" }))) return;
     delete S.user.policy;
     saveUserSettings(S.user);
     recomputeSettings();
@@ -1601,9 +1850,10 @@ const actions: Record<string, () => unknown> = {
 };
 
 function onClick(e: MouseEvent) {
-  const el = (e.target as HTMLElement).closest<HTMLElement>("[data-tab],[data-action],[data-opt],[data-ignore],[data-vopt],[data-filter],[data-url],[data-section]");
+  const el = (e.target as HTMLElement).closest<HTMLElement>("[data-tab],[data-action],[data-opt],[data-ignore],[data-vopt],[data-filter],[data-url],[data-section],[data-scact],[data-sctab]");
   if (!el) return;
   const ds = el.dataset;
+  if (ds.sctab || ds.scact) return scoringClick(ds);
   if (ds.vopt) {
     const key = ds.vopt as VulnKey;
     (S.vuln.answers as Record<string, string>)[key] = ds.val!;
@@ -1671,6 +1921,8 @@ function onInput(e: Event) {
     }
     persist();
     refreshDerived();
+  } else if (ds.sc) {
+    scoringInput(el);
   } else if (ds.setting) {
     if (el.type === "radio" && !el.checked) return;
     setSetting(ds.setting, el.value);
