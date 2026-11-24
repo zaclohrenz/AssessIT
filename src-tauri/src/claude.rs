@@ -34,6 +34,11 @@ pub struct ClaudeStatus {
 const EXE: &str = if cfg!(windows) { "claude.exe" } else { "claude" };
 
 /// GUI apps launched from Finder get a bare PATH, so ask the user's login shell for theirs.
+///
+/// A login shell (`-l`), not an interactive one (`-i`): `-i` also runs ~/.zshrc, which is where people keep
+/// prompts, plugins and password-manager hooks. Run as a child of this app, anything in there that reaches
+/// into another app's data (a 1Password or iTerm hook, say) makes macOS show "AssessIT tried to access your
+/// data from other apps". The usual install locations are checked directly in `locate()` instead.
 fn shell_path() -> &'static str {
     static P: OnceLock<String> = OnceLock::new();
     P.get_or_init(|| {
@@ -44,7 +49,7 @@ fn shell_path() -> &'static str {
         let default_shell = if cfg!(target_os = "macos") { "/bin/zsh" } else { "/bin/sh" };
         let shell = std::env::var("SHELL").unwrap_or_else(|_| default_shell.into());
         let child = std::process::Command::new(shell)
-            .args(["-ilc", "printf '__P__%s__P__' \"$PATH\""])
+            .args(["-lc", "printf '__P__%s__P__' \"$PATH\""])
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -96,6 +101,14 @@ pub fn locate() -> Option<PathBuf> {
         );
         candidates.push(h.join(".npm-global/bin/claude"));
         candidates.push(h.join(".bun/bin/claude"));
+        candidates.push(h.join(".volta/bin/claude"));
+        // Node version managers put global installs in a per-version folder that only ~/.zshrc used to reveal.
+        if let Ok(versions) = std::fs::read_dir(h.join(".nvm/versions/node")) {
+            let mut dirs: Vec<PathBuf> = versions.filter_map(|e| e.ok()).map(|e| e.path().join("bin/claude")).collect();
+            dirs.sort();
+            dirs.reverse(); // newest-looking first
+            candidates.extend(dirs);
+        }
     }
     let sep = if cfg!(windows) { ';' } else { ':' };
     for dir in shell_path().split(sep).filter(|d| !d.is_empty()) {
